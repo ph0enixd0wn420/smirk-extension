@@ -56,6 +56,8 @@ export function WalletView({ onLock }: { onLock: () => void }) {
   const [grinPendingReceive, setGrinPendingReceive] = useState<GrinPendingReceive | null>(null);
   // Count of pending received tips (waiting for confirmations)
   const [pendingTipsCount, setPendingTipsCount] = useState(0);
+  // Count of claimable tips (ready to claim)
+  const [claimableTipsCount, setClaimableTipsCount] = useState(0);
   // Pending sent tips amounts (tips sent but not yet claimed/clawed back)
   const [pendingSentTips, setPendingSentTips] = useState<Record<AssetType, number>>({
     btc: 0, ltc: 0, xmr: 0, wow: 0, grin: 0,
@@ -113,10 +115,16 @@ export function WalletView({ onLock }: { onLock: () => void }) {
       const received = await sendMessage<{ tips: Array<{ status: string; is_claimable: boolean }> }>({
         type: 'GET_RECEIVED_TIPS',
       });
+      // Tips still waiting for confirmations
       const pendingCount = received.tips.filter(
         (t) => (t.status === 'pending' || t.status === 'funded') && !t.is_claimable
       ).length;
       setPendingTipsCount(pendingCount);
+      // Tips ready to claim
+      const claimableCount = received.tips.filter(
+        (t) => (t.status === 'pending' || t.status === 'funded') && t.is_claimable
+      ).length;
+      setClaimableTipsCount(claimableCount);
 
       // Fetch sent tips (for balance deduction)
       const sent = await sendMessage<{ tips: Array<{ asset: AssetType; amount: number; status: string }> }>({
@@ -409,6 +417,13 @@ export function WalletView({ onLock }: { onLock: () => void }) {
           loading={loadingBalance === activeAsset}
           onRefresh={() => fetchBalance(activeAsset)}
         />
+
+        {/* Claimable Tips Banner */}
+        {claimableTipsCount > 0 && (
+          <div class="claimable-banner" onClick={() => setScreen('history')}>
+            🎁 You have {claimableTipsCount} tip{claimableTipsCount > 1 ? 's' : ''} ready to claim!
+          </div>
+        )}
 
         {/* Action Buttons */}
         <div class="action-grid action-grid-4">

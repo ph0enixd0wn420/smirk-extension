@@ -53,6 +53,7 @@ export class SmirkApi extends ApiClient implements
   getSentSocialTips: SocialMethods['getSentSocialTips'];
   claimSocialTip: SocialMethods['claimSocialTip'];
   clawbackSocialTip: SocialMethods['clawbackSocialTip'];
+  confirmTipSweep: SocialMethods['confirmTipSweep'];
   getPublicSocialTip: SocialMethods['getPublicSocialTip'];
 
   // Wallet UTXO methods (BTC/LTC)
@@ -127,6 +128,7 @@ export class SmirkApi extends ApiClient implements
     this.getSentSocialTips = social.getSentSocialTips;
     this.claimSocialTip = social.claimSocialTip;
     this.clawbackSocialTip = social.clawbackSocialTip;
+    this.confirmTipSweep = social.confirmTipSweep;
     this.getPublicSocialTip = social.getPublicSocialTip;
 
     // Assign wallet UTXO methods

@@ -306,6 +306,9 @@ export function HistoryView({ activeAsset, onBack }: HistoryViewProps) {
             onClick={() => setActiveTab('sent')}
           >
             Sent
+            {sentTips.filter(t => t.status === 'pending').length > 0 && (
+              <span class="tab-badge tab-badge-sent">{sentTips.filter(t => t.status === 'pending').length}</span>
+            )}
           </button>
         </div>
 
@@ -499,6 +502,10 @@ export function HistoryView({ activeAsset, onBack }: HistoryViewProps) {
           border-radius: 10px;
           min-width: 18px;
           text-align: center;
+        }
+
+        .tab-badge-sent {
+          background: var(--color-text-muted);
         }
 
         .loading-state,

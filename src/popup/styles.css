@@ -220,6 +220,25 @@ body {
   filter: grayscale(0%) brightness(1);
 }
 
+/* Claimable Tips Banner */
+.claimable-banner {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid var(--color-green);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  color: var(--color-green);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 0.15s ease;
+}
+
+.claimable-banner:hover {
+  background: rgba(34, 197, 94, 0.25);
+}
+
 /* Action Grid */
 .action-grid {
   display: grid;

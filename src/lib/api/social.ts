@@ -159,6 +159,12 @@ export interface SocialMethods {
   clawbackSocialTip(tipId: string): Promise<ApiResponse<{ success: boolean }>>;
 
   /**
+   * Confirm that a tip sweep was successful.
+   * Called after sweep broadcast to move tip from 'claiming' to 'claimed' status.
+   */
+  confirmTipSweep(tipId: string, sweepTxid: string): Promise<ApiResponse<{ success: boolean }>>;
+
+  /**
    * Get public tip info (unauthenticated).
    * Only works for public tips - returns 404 for targeted tips.
    */
@@ -214,6 +220,16 @@ export function createSocialMethods(client: ApiClient): SocialMethods {
       return client.request<{ success: boolean }>(
         `/tips/social/${tipId}/clawback`,
         { method: 'POST' }
+      );
+    },
+
+    async confirmTipSweep(tipId: string, sweepTxid: string) {
+      return client.request<{ success: boolean }>(
+        `/tips/social/${tipId}/confirm-sweep`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ sweep_txid: sweepTxid }),
+        }
       );
     },
 

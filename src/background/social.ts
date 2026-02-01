@@ -985,6 +985,13 @@ export async function handleClaimSocialTip(
 
       console.log(`[ClaimTip] Grin voucher claimed successfully: ${finalTxid}, received: ${actualAmount} nanogrin`);
 
+      // Confirm sweep on backend - moves tip from 'claiming' to 'claimed'
+      const confirmResult = await api.confirmTipSweep(tipId, finalTxid);
+      if (confirmResult.error) {
+        console.warn(`[ClaimTip] Failed to confirm sweep: ${confirmResult.error}`);
+        // Don't fail the claim - funds were swept successfully
+      }
+
       return {
         success: true,
         data: {
@@ -1139,6 +1146,13 @@ export async function handleClaimSocialTip(
     }
 
     console.log(`[ClaimTip] Sweep successful: ${finalTxid}, received: ${actualAmount!} atomic units`);
+
+    // Confirm sweep on backend - moves tip from 'claiming' to 'claimed'
+    const confirmResult = await api.confirmTipSweep(tipId, finalTxid);
+    if (confirmResult.error) {
+      console.warn(`[ClaimTip] Failed to confirm sweep: ${confirmResult.error}`);
+      // Don't fail the claim - funds were swept successfully
+    }
 
     return {
       success: true,
@@ -1311,9 +1325,16 @@ export async function handleRetrySweep(
       return { success: false, error: `Retry not supported for ${tipAsset}` };
     }
 
-    // Success - remove pending sweep
+    // Success - remove pending sweep and confirm on backend
     await removePendingSweep(tipId);
     console.log(`[RetrySweep] Sweep successful: ${finalTxid}`);
+
+    // Confirm sweep on backend - moves tip from 'claiming' to 'claimed'
+    const confirmResult = await api.confirmTipSweep(tipId, finalTxid);
+    if (confirmResult.error) {
+      console.warn(`[RetrySweep] Failed to confirm sweep: ${confirmResult.error}`);
+      // Don't fail the retry - funds were swept successfully
+    }
 
     return {
       success: true,
@@ -1618,6 +1639,13 @@ export async function handleClaimPublicTip(
     }
 
     console.log(`[ClaimPublicTip] Success! txid=${finalTxid}, amount=${actualAmount!}`);
+
+    // Confirm sweep on backend - moves tip from 'claiming' to 'claimed'
+    const confirmResult = await api.confirmTipSweep(tipId, finalTxid);
+    if (confirmResult.error) {
+      console.warn(`[ClaimPublicTip] Failed to confirm sweep: ${confirmResult.error}`);
+      // Don't fail the claim - funds were swept successfully
+    }
 
     return {
       success: true,

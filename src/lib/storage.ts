@@ -430,3 +430,74 @@ export async function removePendingSocialTip(tipId: string): Promise<void> {
 export async function clearAllPendingSocialTips(): Promise<void> {
   await storage.local.remove(STORAGE_KEY_PENDING_TIPS);
 }
+
+/**
+ * Pending sweep - stores claim data when sweep broadcast fails.
+ * This allows retrying the sweep without re-claiming from backend
+ * (which would fail since tip is already marked as claimed).
+ */
+export interface PendingSweep {
+  /** Backend tip ID (UUID) */
+  tipId: string;
+  /** Asset type */
+  asset: 'btc' | 'ltc' | 'xmr' | 'wow';
+  /** ECIES encrypted tip key (from backend claim response) */
+  encryptedKey: string;
+  /** Tip address where funds are held */
+  tipAddress: string;
+  /** Unix timestamp when claim was attempted */
+  createdAt: number;
+  /** Number of retry attempts */
+  retryCount: number;
+  /** Last error message */
+  lastError: string;
+}
+
+const STORAGE_KEY_PENDING_SWEEPS = 'pendingSweeps';
+
+/**
+ * Gets all pending sweeps that need retry.
+ */
+export async function getPendingSweeps(): Promise<PendingSweep[]> {
+  const result = await storage.local.get<Record<string, PendingSweep[]>>(STORAGE_KEY_PENDING_SWEEPS);
+  return result[STORAGE_KEY_PENDING_SWEEPS] ?? [];
+}
+
+/**
+ * Gets a pending sweep by tip ID.
+ */
+export async function getPendingSweep(tipId: string): Promise<PendingSweep | null> {
+  const sweeps = await getPendingSweeps();
+  return sweeps.find((s) => s.tipId === tipId) ?? null;
+}
+
+/**
+ * Adds or updates a pending sweep.
+ */
+export async function savePendingSweep(sweep: PendingSweep): Promise<void> {
+  const sweeps = await getPendingSweeps();
+  const existingIndex = sweeps.findIndex((s) => s.tipId === sweep.tipId);
+  if (existingIndex >= 0) {
+    sweeps[existingIndex] = sweep;
+  } else {
+    sweeps.push(sweep);
+  }
+  await storage.local.set({ [STORAGE_KEY_PENDING_SWEEPS]: sweeps });
+}
+
+/**
+ * Removes a pending sweep (after successful retry or expiry).
+ */
+export async function removePendingSweep(tipId: string): Promise<void> {
+  const sweeps = await getPendingSweeps();
+  const filtered = sweeps.filter((s) => s.tipId !== tipId);
+  await storage.local.set({ [STORAGE_KEY_PENDING_SWEEPS]: filtered });
+}
+
+/**
+ * Gets count of pending sweeps.
+ */
+export async function getPendingSweepCount(): Promise<number> {
+  const sweeps = await getPendingSweeps();
+  return sweeps.length;
+}

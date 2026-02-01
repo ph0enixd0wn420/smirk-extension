@@ -152,6 +152,12 @@ export function createSignedTransaction(
     }
   } else {
     // Normal mode: select UTXOs for specific amount
+
+    // Validate amount is above dust threshold
+    if (amount < 546) {
+      throw new Error(`Amount ${amount} is below dust threshold (546 sats)`);
+    }
+
     const selection = selectUtxos(utxos, amount, feeRate);
     selected = selection.selected;
     fee = selection.fee;
@@ -177,9 +183,14 @@ export function createSignedTransaction(
   // Add recipient output
   tx.addOutputAddress(recipientAddress, BigInt(actualAmount), network);
 
-  // Add change output if significant (dust threshold ~546 sats) and not sweeping
+  // Add change output if significant (above dust threshold) and not sweeping
+  // If change is dust (<= 546 sats), absorb it into the fee instead
   if (!sweep && change > 546) {
     tx.addOutputAddress(changeAddress, BigInt(change), network);
+  } else if (!sweep && change > 0) {
+    // Dust change: absorb into fee
+    fee += change;
+    change = 0;
   }
 
   // Sign all inputs

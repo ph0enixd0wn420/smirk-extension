@@ -54,6 +54,12 @@ export function WalletView({ onLock }: { onLock: () => void }) {
   });
   // Pending Grin receive (signed slatepack waiting for sender to finalize)
   const [grinPendingReceive, setGrinPendingReceive] = useState<GrinPendingReceive | null>(null);
+  // Count of pending received tips (waiting for confirmations)
+  const [pendingTipsCount, setPendingTipsCount] = useState(0);
+  // Pending sent tips amounts (tips sent but not yet claimed/clawed back)
+  const [pendingSentTips, setPendingSentTips] = useState<Record<AssetType, number>>({
+    btc: 0, ltc: 0, xmr: 0, wow: 0, grin: 0,
+  });
 
   // =========================================================================
   // Effects
@@ -98,6 +104,42 @@ export function WalletView({ onLock }: { onLock: () => void }) {
   // Fetch addresses on mount
   useEffect(() => {
     fetchAddresses();
+  }, []);
+
+  // Fetch pending tips (received count + sent amounts)
+  const fetchPendingTips = async () => {
+    try {
+      // Fetch received tips (for notification badge)
+      const received = await sendMessage<{ tips: Array<{ status: string; is_claimable: boolean }> }>({
+        type: 'GET_RECEIVED_TIPS',
+      });
+      const pendingCount = received.tips.filter(
+        (t) => (t.status === 'pending' || t.status === 'funded') && !t.is_claimable
+      ).length;
+      setPendingTipsCount(pendingCount);
+
+      // Fetch sent tips (for balance deduction)
+      const sent = await sendMessage<{ tips: Array<{ asset: AssetType; amount: number; status: string }> }>({
+        type: 'GET_SENT_SOCIAL_TIPS',
+      });
+      // Sum pending tips (not claimed, not clawed back) per asset
+      const pendingAmounts: Record<AssetType, number> = { btc: 0, ltc: 0, xmr: 0, wow: 0, grin: 0 };
+      for (const tip of sent.tips) {
+        if (tip.status === 'pending' || tip.status === 'funded') {
+          pendingAmounts[tip.asset] = (pendingAmounts[tip.asset] || 0) + tip.amount;
+        }
+      }
+      setPendingSentTips(pendingAmounts);
+    } catch (err) {
+      console.error('Failed to fetch pending tips:', err);
+    }
+  };
+
+  // Fetch pending tips on mount and periodically
+  useEffect(() => {
+    fetchPendingTips();
+    const interval = setInterval(fetchPendingTips, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   // Fetch balance when asset changes
@@ -227,7 +269,9 @@ export function WalletView({ onLock }: { onLock: () => void }) {
   const currentAddress = addresses[activeAsset];
   const currentBalance = balances[activeAsset];
   const currentPendingOutgoing = pendingOutgoing[activeAsset] || 0;
-  const adjustedConfirmed = Math.max(0, (currentBalance?.confirmed ?? 0) - currentPendingOutgoing);
+  const currentPendingSentTips = pendingSentTips[activeAsset] || 0;
+  // Deduct both pending txs and pending sent tips from confirmed balance
+  const adjustedConfirmed = Math.max(0, (currentBalance?.confirmed ?? 0) - currentPendingOutgoing - currentPendingSentTips);
 
   // =========================================================================
   // Sub-screens
@@ -267,7 +311,6 @@ export function WalletView({ onLock }: { onLock: () => void }) {
         onSent={() => {
           setScreen('main');
           fetchBalance(activeAsset);
-          fetchHistory(activeAsset);
         }}
       />
     );
@@ -290,14 +333,23 @@ export function WalletView({ onLock }: { onLock: () => void }) {
         onTipSent={() => {
           setScreen('main');
           fetchBalance(activeAsset);
-          fetchHistory(activeAsset);
+          fetchPendingTips();
         }}
       />
     );
   }
 
   if (screen === 'history') {
-    return <HistoryView activeAsset={activeAsset} onBack={() => setScreen('main')} />;
+    return (
+      <HistoryView
+        activeAsset={activeAsset}
+        onBack={() => {
+          setScreen('main');
+          fetchPendingTips();
+          fetchBalance(activeAsset);
+        }}
+      />
+    );
   }
 
   // =========================================================================
@@ -373,7 +425,10 @@ export function WalletView({ onLock }: { onLock: () => void }) {
             <span class="action-label">Tip</span>
           </button>
           <button class="action-btn" onClick={() => setScreen('history')}>
-            <span class="action-icon">📜</span>
+            <span class="action-icon">
+              📜
+              {pendingTipsCount > 0 && <span class="action-badge">{pendingTipsCount}</span>}
+            </span>
             <span class="action-label">History</span>
           </button>
         </div>

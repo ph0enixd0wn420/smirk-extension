@@ -87,7 +87,12 @@ import {
   addPendingSocialTip,
   getPendingSocialTip,
   updatePendingSocialTipStatus,
+  savePendingSweep,
+  getPendingSweep,
+  removePendingSweep,
+  getPendingSweeps,
   type PendingSocialTip,
+  type PendingSweep,
 } from '@/lib/storage';
 import { getAddressForAsset } from './wallet';
 import { encrypt, decrypt, deriveKeyFromPassword } from '@/lib/crypto';
@@ -98,6 +103,34 @@ import {
   getTransactionJson,
   type GrinOutput,
 } from '@/lib/grin';
+
+/**
+ * Helper to retry an async operation with exponential backoff.
+ * @param fn - Async function to retry
+ * @param maxRetries - Maximum number of retries (default: 3)
+ * @param baseDelayMs - Base delay in milliseconds (default: 500)
+ * @returns Result of the function or throws on all retries failed
+ */
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelayMs: number = 500
+): Promise<T> {
+  let lastError: Error | undefined;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < maxRetries - 1) {
+        const delay = baseDelayMs * Math.pow(2, attempt);
+        console.log(`[Retry] Attempt ${attempt + 1} failed, retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw lastError;
+}
 
 /**
  * Look up a social platform username to check if they're registered.
@@ -263,6 +296,9 @@ export async function handleCreateSocialTip(
     let fundingTxid: string;
     let actualAmount: number;
     let tipViewKeyHex: string | undefined; // For XMR/WOW only - used for 0-conf webhook registration
+    // Grin voucher metadata (used for encryption and local storage)
+    let grinVoucherProof: string | undefined;
+    let grinVoucherNChild: number | undefined;
 
     if (asset === 'btc' || asset === 'ltc') {
       // BTC/LTC flow
@@ -346,14 +382,23 @@ export async function handleCreateSocialTip(
       console.log(`[SocialTip] Generated ${asset} tip address: ${tipAddress}`);
 
       // Step 2: Register tip address with LWS (required for recipient to query unspent outputs)
-      tipViewKeyHex = bytesToHex(tipKeys.viewKey); // Save for backend 0-conf webhook registration
+      // Retry up to 3 times with exponential backoff (500ms, 1000ms, 2000ms)
+      const viewKeyHexForRegistration = bytesToHex(tipKeys.viewKey);
+      tipViewKeyHex = viewKeyHexForRegistration; // Save for backend 0-conf webhook registration
       console.log(`[SocialTip] Registering ${asset} tip address with LWS...`);
-      const registerResult = await api.registerLws(authState.userId, asset, tipAddress, tipViewKeyHex);
-      if (registerResult.error) {
-        console.error(`[SocialTip] Failed to register tip address with LWS:`, registerResult.error);
-        return { success: false, error: `Failed to register tip address with LWS: ${registerResult.error}` };
+      try {
+        await retryWithBackoff(async () => {
+          const registerResult = await api.registerLws(authState.userId, asset, tipAddress, viewKeyHexForRegistration);
+          if (registerResult.error) {
+            throw new Error(registerResult.error);
+          }
+        }, 3, 500);
+        console.log(`[SocialTip] Tip address registered with LWS`);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        console.error(`[SocialTip] Failed to register tip address with LWS after 3 retries:`, errorMessage);
+        return { success: false, error: `Failed to register tip address with LWS: ${errorMessage}` };
       }
-      console.log(`[SocialTip] Tip address registered with LWS`);
 
       // Step 3: Send funds to tip address
       try {
@@ -511,12 +556,9 @@ export async function handleCreateSocialTip(
       fundingTxid = voucherResult.slate.id;
       actualAmount = Number(voucherResult.voucherOutput.amount);
 
-      // Store voucher metadata for the grin-specific encryption below
-      (globalThis as any).__grinVoucherProof = voucherResult.voucherOutput.proof;
-      (globalThis as any).__grinVoucherNChild = voucherResult.voucherOutput.nChild;
-      // Also store for local storage (clawback needs the same data)
-      (globalThis as any).__grinVoucherProofForStorage = voucherResult.voucherOutput.proof;
-      (globalThis as any).__grinVoucherNChildForStorage = voucherResult.voucherOutput.nChild;
+      // Store voucher metadata for encryption and local storage (used below)
+      grinVoucherProof = voucherResult.voucherOutput.proof;
+      grinVoucherNChild = voucherResult.voucherOutput.nChild;
 
     } else {
       return { success: false, error: `Social tips not supported for ${asset}` };
@@ -531,18 +573,16 @@ export async function handleCreateSocialTip(
       // Public tip: encrypt with URL fragment key
       if (asset === 'grin') {
         // For Grin, encrypt the full voucher data
-        const grinVoucherData = JSON.stringify({
+        const grinVoucherDataJson = JSON.stringify({
           blindingFactor: bytesToHex(tipPrivateKey),
           commitment: tipAddress,
-          proof: (globalThis as any).__grinVoucherProof,
-          nChild: (globalThis as any).__grinVoucherNChild,
+          proof: grinVoucherProof,
+          nChild: grinVoucherNChild,
           amount: actualAmount,
           features: 0,
         });
-        delete (globalThis as any).__grinVoucherProof;
-        delete (globalThis as any).__grinVoucherNChild;
 
-        const voucherDataBytes = new TextEncoder().encode(grinVoucherData);
+        const voucherDataBytes = new TextEncoder().encode(grinVoucherDataJson);
         encrypted_key = createPublicTipPayload(voucherDataBytes, urlFragmentKey!.bytes);
       } else {
         encrypted_key = createPublicTipPayload(tipPrivateKey, urlFragmentKey!.bytes);
@@ -559,21 +599,17 @@ export async function handleCreateSocialTip(
         // - proof (range proof - needed for tx input)
         // - nChild (for reference)
         // - amount (for verification)
-        const grinVoucherData = JSON.stringify({
+        const grinVoucherDataJson = JSON.stringify({
           blindingFactor: bytesToHex(tipPrivateKey),
           commitment: tipAddress,
-          proof: (globalThis as any).__grinVoucherProof,
-          nChild: (globalThis as any).__grinVoucherNChild,
+          proof: grinVoucherProof,
+          nChild: grinVoucherNChild,
           amount: actualAmount,
           features: 0, // Plain output
         });
 
-        // Clean up temp globals
-        delete (globalThis as any).__grinVoucherProof;
-        delete (globalThis as any).__grinVoucherNChild;
-
         // Encrypt the JSON data
-        const voucherDataBytes = new TextEncoder().encode(grinVoucherData);
+        const voucherDataBytes = new TextEncoder().encode(grinVoucherDataJson);
         const { encryptedKey, ephemeralPubkey } = createEncryptedTipPayload(
           voucherDataBytes,
           recipientPubkeyBytes
@@ -637,13 +673,8 @@ export async function handleCreateSocialTip(
           // For other assets, just store the private key
           let dataToEncrypt: Uint8Array;
           if (asset === 'grin') {
-            // Retrieve the stored voucher metadata
-            const grinVoucherProof = (globalThis as any).__grinVoucherProofForStorage;
-            const grinVoucherNChild = (globalThis as any).__grinVoucherNChildForStorage;
-            delete (globalThis as any).__grinVoucherProofForStorage;
-            delete (globalThis as any).__grinVoucherNChildForStorage;
-
-            const grinVoucherData = JSON.stringify({
+            // Use the voucher metadata from the local variables (no globalThis race condition)
+            const grinVoucherDataJson = JSON.stringify({
               blindingFactor: bytesToHex(tipPrivateKey),
               commitment: tipAddress,
               proof: grinVoucherProof,
@@ -651,7 +682,7 @@ export async function handleCreateSocialTip(
               amount: actualAmount,
               features: 0,
             });
-            dataToEncrypt = new TextEncoder().encode(grinVoucherData);
+            dataToEncrypt = new TextEncoder().encode(grinVoucherDataJson);
           } else {
             dataToEncrypt = tipPrivateKey;
           }
@@ -1017,7 +1048,22 @@ export async function handleClaimSocialTip(
       // Step 5: Broadcast sweep transaction
       const broadcastResult = await api.broadcastTx(tipAsset, txHex);
       if (broadcastResult.error) {
-        return { success: false, error: `Sweep broadcast failed: ${broadcastResult.error}` };
+        // Save for retry - tip is marked 'claimed' on backend but funds weren't swept
+        const existingSweep = await getPendingSweep(tipId);
+        await savePendingSweep({
+          tipId,
+          asset: tipAsset as 'btc' | 'ltc',
+          encryptedKey: encrypted_key,
+          tipAddress: tip_address,
+          createdAt: existingSweep?.createdAt ?? Date.now(),
+          retryCount: (existingSweep?.retryCount ?? 0) + 1,
+          lastError: broadcastResult.error,
+        });
+        console.error(`[ClaimTip] Sweep broadcast failed, saved for retry: ${broadcastResult.error}`);
+        return {
+          success: false,
+          error: `Sweep broadcast failed: ${broadcastResult.error}. You can retry claiming this tip.`,
+        };
       }
 
       finalTxid = broadcastResult.data!.txid;
@@ -1065,9 +1111,24 @@ export async function handleClaimSocialTip(
         console.error(`[ClaimTip] sendXmrTransaction FAILED for ${tipAsset}:`, err);
         console.error(`[ClaimTip] Error message:`, err instanceof Error ? err.message : String(err));
         console.error(`[ClaimTip] Error stack:`, err instanceof Error ? err.stack : 'no stack');
+
+        // Save for retry - tip is marked 'claimed' on backend but funds weren't swept
+        const errorMessage = err instanceof Error ? err.message : 'Failed to sweep funds';
+        const existingSweep = await getPendingSweep(tipId);
+        await savePendingSweep({
+          tipId,
+          asset: tipAsset as 'xmr' | 'wow',
+          encryptedKey: encrypted_key,
+          tipAddress: tip_address,
+          createdAt: existingSweep?.createdAt ?? Date.now(),
+          retryCount: (existingSweep?.retryCount ?? 0) + 1,
+          lastError: errorMessage,
+        });
+        console.error(`[ClaimTip] XMR/WOW sweep failed, saved for retry`);
+
         return {
           success: false,
-          error: err instanceof Error ? err.message : 'Failed to sweep funds',
+          error: `${errorMessage}. You can retry claiming this tip.`,
         };
       }
     } else {
@@ -1088,6 +1149,195 @@ export async function handleClaimSocialTip(
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to claim tip',
+    };
+  }
+}
+
+/**
+ * Retry a failed sweep for a claimed tip.
+ *
+ * When a tip is claimed but the sweep broadcast fails (network error, etc.),
+ * the tip data is saved locally. This function retries the sweep.
+ *
+ * Flow:
+ * 1. Get pending sweep from local storage
+ * 2. Decrypt tip key using BTC private key
+ * 3. Build and broadcast sweep transaction
+ * 4. If successful, remove from pending sweeps
+ */
+export async function handleRetrySweep(
+  tipId: string
+): Promise<MessageResponse<{ success: boolean; txid?: string }>> {
+  try {
+    if (!isUnlocked) {
+      return { success: false, error: 'Wallet is locked' };
+    }
+
+    // Get pending sweep data
+    const pendingSweep = await getPendingSweep(tipId);
+    if (!pendingSweep) {
+      return { success: false, error: 'No pending sweep found for this tip' };
+    }
+
+    const { asset: tipAsset, encryptedKey: encrypted_key, tipAddress: tip_address } = pendingSweep;
+
+    console.log(`[RetrySweep] Retrying sweep for ${tipAsset} tip ${tipId}, attempt ${pendingSweep.retryCount + 1}`);
+
+    // Get recipient's BTC private key for decryption
+    const btcPrivateKey = unlockedKeys.get('btc');
+    if (!btcPrivateKey) {
+      return { success: false, error: 'BTC key not available for decryption' };
+    }
+
+    // Decrypt tip key
+    const ephemeralPubkeyHex = encrypted_key.slice(0, 66);
+    const encryptedKeyHex = encrypted_key.slice(66);
+
+    let decryptedData: Uint8Array;
+    try {
+      decryptedData = decryptTipPayload(encryptedKeyHex, ephemeralPubkeyHex, btcPrivateKey);
+    } catch (err) {
+      return { success: false, error: 'Failed to decrypt tip data' };
+    }
+
+    // Get recipient address from wallet state
+    const state = await getWalletState();
+    const recipientKey = state.keys[tipAsset];
+    if (!recipientKey) {
+      return { success: false, error: `No ${tipAsset.toUpperCase()} key found in wallet` };
+    }
+    const recipientAddress = getAddressForAsset(tipAsset, recipientKey);
+
+    let finalTxid: string;
+
+    if (tipAsset === 'btc' || tipAsset === 'ltc') {
+      // BTC/LTC sweep
+      const tipPrivateKey = decryptedData;
+
+      // Fetch UTXOs from tip address
+      const utxoResult = await api.getUtxos(tipAsset, tip_address);
+      if (utxoResult.error || !utxoResult.data) {
+        return { success: false, error: `Failed to fetch UTXOs: ${utxoResult.error || 'no data'}` };
+      }
+
+      const utxos: Utxo[] = utxoResult.data.utxos;
+      if (utxos.length === 0) {
+        // No UTXOs - funds may have already been swept or tip was invalid
+        await removePendingSweep(tipId);
+        return { success: false, error: 'No funds found at tip address - may have already been swept' };
+      }
+
+      // Get fee estimate
+      const feeResult = await api.estimateFee(tipAsset);
+      const feeRate = feeResult.data?.normal ?? 10;
+
+      // Build sweep transaction
+      let txHex: string;
+      try {
+        const txResult = createBtcSignedTransaction(
+          tipAsset,
+          utxos,
+          recipientAddress,
+          0,
+          recipientAddress,
+          tipPrivateKey,
+          feeRate,
+          true // sweep mode
+        );
+        txHex = txResult.txHex;
+      } catch (err) {
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : 'Failed to create sweep transaction',
+        };
+      }
+
+      // Broadcast
+      const broadcastResult = await api.broadcastTx(tipAsset, txHex);
+      if (broadcastResult.error) {
+        // Update retry count and error
+        await savePendingSweep({
+          ...pendingSweep,
+          retryCount: pendingSweep.retryCount + 1,
+          lastError: broadcastResult.error,
+        });
+        return {
+          success: false,
+          error: `Sweep broadcast failed: ${broadcastResult.error}. You can retry again.`,
+        };
+      }
+
+      finalTxid = broadcastResult.data!.txid;
+
+    } else if (tipAsset === 'xmr' || tipAsset === 'wow') {
+      // XMR/WOW sweep
+      const tipSpendKey = decryptedData;
+      const tipViewKey = deriveViewKeyFromSpendKey(tipSpendKey);
+
+      try {
+        const txResult = await sendXmrTransaction(
+          tipAsset,
+          tip_address,
+          bytesToHex(tipViewKey),
+          bytesToHex(tipSpendKey),
+          recipientAddress,
+          0,
+          'mainnet',
+          true // sweep mode
+        );
+        finalTxid = txResult.txHash;
+
+        // Deactivate tip address from LWS
+        api.deactivateLws(tipAsset, tip_address).catch((err) => {
+          console.warn(`[RetrySweep] Failed to deactivate LWS address:`, err);
+        });
+      } catch (err) {
+        // Update retry count and error
+        const errorMessage = err instanceof Error ? err.message : 'Failed to sweep funds';
+        await savePendingSweep({
+          ...pendingSweep,
+          retryCount: pendingSweep.retryCount + 1,
+          lastError: errorMessage,
+        });
+        return {
+          success: false,
+          error: `${errorMessage}. You can retry again.`,
+        };
+      }
+    } else {
+      return { success: false, error: `Retry not supported for ${tipAsset}` };
+    }
+
+    // Success - remove pending sweep
+    await removePendingSweep(tipId);
+    console.log(`[RetrySweep] Sweep successful: ${finalTxid}`);
+
+    return {
+      success: true,
+      data: {
+        success: true,
+        txid: finalTxid,
+      },
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to retry sweep',
+    };
+  }
+}
+
+/**
+ * Get all pending sweeps that need retry.
+ */
+export async function handleGetPendingSweeps(): Promise<MessageResponse<PendingSweep[]>> {
+  try {
+    const sweeps = await getPendingSweeps();
+    return { success: true, data: sweeps };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to get pending sweeps',
     };
   }
 }

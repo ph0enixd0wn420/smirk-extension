@@ -42,12 +42,13 @@ interface SentTip {
 
 interface HistoryViewProps {
   activeAsset: AssetType;
+  initialTab?: TabType;
   onBack: () => void;
 }
 
-export function HistoryView({ activeAsset, onBack }: HistoryViewProps) {
+export function HistoryView({ activeAsset, initialTab, onBack }: HistoryViewProps) {
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState<TabType>('transactions');
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab || 'transactions');
 
   // Transaction state
   const [transactions, setTransactions] = useState<TxHistoryEntry[] | null>(null);
@@ -66,6 +67,12 @@ export function HistoryView({ activeAsset, onBack }: HistoryViewProps) {
   const [clawingBackTipId, setClawingBackTipId] = useState<string | null>(null);
 
   const [error, setError] = useState<string | null>(null);
+
+  // Fetch received tips count on mount (for badge display)
+  useEffect(() => {
+    fetchReceivedTips();
+    fetchSentTips();
+  }, []);
 
   // Fetch data based on active tab
   useEffect(() => {

@@ -41,6 +41,7 @@ export function WalletView({ onLock }: { onLock: () => void }) {
   const { showToast } = useToast();
   const [activeAsset, setActiveAsset] = useState<AssetType>('btc');
   const [screen, setScreen] = useState<WalletScreen>('main');
+  const [historyInitialTab, setHistoryInitialTab] = useState<'transactions' | 'received' | 'sent'>('transactions');
   const [addresses, setAddresses] = useState<Record<AssetType, AddressData | null>>({
     btc: null, ltc: null, xmr: null, wow: null, grin: null,
   });
@@ -351,7 +352,9 @@ export function WalletView({ onLock }: { onLock: () => void }) {
     return (
       <HistoryView
         activeAsset={activeAsset}
+        initialTab={historyInitialTab}
         onBack={() => {
+          setHistoryInitialTab('transactions'); // Reset for next time
           setScreen('main');
           fetchPendingTips();
           fetchBalance(activeAsset);
@@ -420,7 +423,10 @@ export function WalletView({ onLock }: { onLock: () => void }) {
 
         {/* Claimable Tips Banner */}
         {claimableTipsCount > 0 && (
-          <div class="claimable-banner" onClick={() => setScreen('history')}>
+          <div class="claimable-banner" onClick={() => {
+            setHistoryInitialTab('received');
+            setScreen('history');
+          }}>
             🎁 You have {claimableTipsCount} tip{claimableTipsCount > 1 ? 's' : ''} ready to claim!
           </div>
         )}

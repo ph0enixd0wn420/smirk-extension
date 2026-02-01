@@ -3,15 +3,14 @@
 ## Known Issues (Alpha)
 
 ### UX
-- [ ] Pending tips not reflected in balance immediately
+- [x] Pending tips not reflected in balance immediately (FIXED)
 - [ ] Clawback UI could be improved (confirmation flow)
 - [ ] Grin fee display before confirming send
 
 ---
 
-## Phase 3: Additional Platforms
+## Future: Additional Platforms
 
-- [ ] Discord in platform selector
 - [ ] Signal / Matrix / Simplex (when backend supports)
 
 ## Lower Priority
@@ -40,6 +39,10 @@ Extension MUST use `next_child_index` from `/wallet/grin/user/{id}/outputs`.
 
 ## Completed
 
+- [x] **Discord Tipping** (2026-02-01)
+  - Discord added to platform selector
+  - Scalable platform registry (data-driven UI)
+  - Sender anonymity toggle
 - [x] **Stats & Prices Panel** (2026-01-30)
   - InfoPanel component with Prices/Stats tabs
   - Live USD prices for all 5 assets

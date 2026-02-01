@@ -13,7 +13,7 @@ See [docs/installation.md](docs/installation.md) for installation instructions.
 
 - **Non-custodial**: Your keys never leave your device
 - **Multi-currency**: BTC, LTC, XMR, WOW, GRIN
-- **Social media tipping**: Tip users by Telegram username
+- **Social media tipping**: Tip users by Telegram or Discord username
 - **Encrypted tips**: Tips targeted at specific users are encrypted with their public key
 - **Website integration**: `window.smirk` API for web apps (like MetaMask's `window.ethereum`)
 

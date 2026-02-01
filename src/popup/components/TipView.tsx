@@ -18,12 +18,66 @@ import {
 import { useToast, copyToClipboard } from './Toast';
 
 type TipStep = 'platform' | 'username' | 'amount' | 'sending' | 'success';
-type Platform = 'telegram' | 'free';
 
-const PLATFORMS: { id: Platform; name: string; icon: string }[] = [
-  { id: 'telegram', name: 'Telegram', icon: '📱' },
-  { id: 'free', name: 'Public Tip', icon: '🌐' },
+// ============================================================================
+// Platform Configuration Registry
+// ============================================================================
+
+interface PlatformConfig {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  requiresUsername: boolean;
+  usernameLabel: string;
+  usernamePlaceholder: string;
+  normalizeUsername: (input: string) => string;
+  formatDisplay: (username: string) => string;
+}
+
+const PLATFORMS: PlatformConfig[] = [
+  {
+    id: 'telegram',
+    name: 'Telegram',
+    icon: '📱',
+    description: 'Send to a Telegram username',
+    requiresUsername: true,
+    usernameLabel: 'Telegram username',
+    usernamePlaceholder: '@username',
+    normalizeUsername: (u) => u.trim().replace(/^@/, '').toLowerCase(),
+    formatDisplay: (u) => `@${u}`,
+  },
+  {
+    id: 'discord',
+    name: 'Discord',
+    icon: '💬',
+    description: 'Send to a Discord username',
+    requiresUsername: true,
+    usernameLabel: 'Discord username',
+    usernamePlaceholder: 'username',
+    normalizeUsername: (u) => u.trim().toLowerCase(),
+    formatDisplay: (u) => u,
+  },
+  {
+    id: 'free',
+    name: 'Public Tip',
+    icon: '🌐',
+    description: 'Create a tip anyone can claim',
+    requiresUsername: false,
+    usernameLabel: '',
+    usernamePlaceholder: '',
+    normalizeUsername: (u) => u,
+    formatDisplay: (u) => u,
+  },
 ];
+
+// Helper to get platform config by ID
+const getPlatformConfig = (id: string): PlatformConfig | undefined =>
+  PLATFORMS.find((p) => p.id === id);
+
+// ============================================================================
+// Component
+// ============================================================================
 
 export function TipView({
   asset,
@@ -38,7 +92,7 @@ export function TipView({
 }) {
   const { showToast } = useToast();
   const [step, setStep] = useState<TipStep>('platform');
-  const [platform, setPlatform] = useState<Platform | null>(null);
+  const [platform, setPlatform] = useState<string | null>(null);
   const [username, setUsername] = useState('');
   const [amount, setAmount] = useState('');
   const [senderAnonymous, setSenderAnonymous] = useState(false);
@@ -51,30 +105,32 @@ export function TipView({
   const availableBalance = balance?.confirmed ?? 0;
   const divisor = ATOMIC_DIVISORS[asset];
 
-  // Normalize username (remove @ prefix, lowercase)
+  // Get current platform config
+  const platformConfig = platform ? getPlatformConfig(platform) : null;
+
+  // Normalize username using platform-specific rules
   const normalizeUsername = (u: string) => {
-    let normalized = u.trim();
-    if (normalized.startsWith('@')) {
-      normalized = normalized.slice(1);
-    }
-    return normalized.toLowerCase();
+    return platformConfig?.normalizeUsername(u) ?? u.trim().toLowerCase();
   };
 
   // Handle platform selection
-  const handlePlatformSelect = (p: Platform) => {
-    setPlatform(p);
+  const handlePlatformSelect = (platformId: string) => {
+    const config = getPlatformConfig(platformId);
+    if (!config) return;
+
+    setPlatform(platformId);
     setError('');
-    if (p === 'free') {
-      // Public tips skip username lookup
-      setStep('amount');
-    } else {
+
+    if (config.requiresUsername) {
       setStep('username');
+    } else {
+      setStep('amount');
     }
   };
 
   // Handle username lookup
   const handleLookup = async () => {
-    if (!platform || platform === 'free') return;
+    if (!platform || !platformConfig?.requiresUsername) return;
 
     const normalized = normalizeUsername(username);
     if (!normalized) {
@@ -95,12 +151,12 @@ export function TipView({
       setLookupResult(result);
 
       if (!result.registered) {
-        setError(`@${normalized} is not registered on Smirk. They need to link their ${platform} account at smirk.cash first.`);
+        setError(`${platformConfig.formatDisplay(normalized)} is not registered on Smirk. They need to link their ${platformConfig.name} account at smirk.cash first.`);
       } else {
         // Check if recipient has a key for this asset
         const recipientKey = result.publicKeys?.[asset];
         if (!recipientKey) {
-          setError(`@${normalized} doesn't have a ${ASSETS[asset].symbol} wallet set up.`);
+          setError(`${platformConfig.formatDisplay(normalized)} doesn't have a ${ASSETS[asset].symbol} wallet set up.`);
         } else {
           setStep('amount');
         }
@@ -148,12 +204,12 @@ export function TipView({
 
     try {
       // For targeted tips, include the recipient's BTC public key for encryption
-      const recipientBtcPubkey = platform !== 'free' ? lookupResult?.publicKeys?.btc : undefined;
+      const recipientBtcPubkey = platformConfig?.requiresUsername ? lookupResult?.publicKeys?.btc : undefined;
 
       const result = await sendMessage<{ tipId: string; status: string; isPublic?: boolean }>({
         type: 'CREATE_SOCIAL_TIP',
-        platform: platform === 'free' ? '' : platform!,
-        username: platform === 'free' ? '' : normalizeUsername(username),
+        platform: platformConfig?.requiresUsername ? platform! : '',
+        username: platformConfig?.requiresUsername ? normalizeUsername(username) : '',
         asset,
         amount: amountAtomic,
         recipientBtcPubkey: recipientBtcPubkey || undefined,
@@ -165,7 +221,7 @@ export function TipView({
       // For public tips, try to get the share URL
       // BTC/LTC have 0 confirmations required so URL is available immediately
       // XMR/WOW/GRIN need confirmations so URL won't be available yet
-      if (platform === 'free' && result.isPublic) {
+      if (!platformConfig?.requiresUsername && result.isPublic) {
         const confirmationsNeeded = CONFIRMATION_REQUIREMENTS[asset];
         if (confirmationsNeeded === 0) {
           // URL should be available immediately
@@ -234,9 +290,9 @@ export function TipView({
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>🎁</div>
             <h2 style={{ marginBottom: '8px' }}>Tip Sent!</h2>
             <p style={{ color: 'var(--color-text-muted)', fontSize: '13px', marginBottom: '16px' }}>
-              {platform === 'free'
-                ? 'Your public tip is ready to claim'
-                : `Your tip to @${normalizeUsername(username)} has been created`}
+              {platformConfig?.requiresUsername
+                ? `Your tip to ${platformConfig.formatDisplay(normalizeUsername(username))} has been created`
+                : 'Your public tip is ready to claim'}
             </p>
 
             <div
@@ -250,9 +306,9 @@ export function TipView({
               <div style={{ fontSize: '24px', fontWeight: 600, marginBottom: '4px' }}>
                 {amount} {ASSETS[asset].symbol}
               </div>
-              {platform !== 'free' && (
+              {platformConfig?.requiresUsername && (
                 <div style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>
-                  to @{normalizeUsername(username)} on {platform}
+                  to {platformConfig.formatDisplay(normalizeUsername(username))} on {platformConfig.name}
                 </div>
               )}
             </div>
@@ -414,10 +470,10 @@ export function TipView({
               setLookupResult(null);
               setError('');
             } else if (step === 'amount') {
-              if (platform === 'free') {
-                setStep('platform');
-              } else {
+              if (platformConfig?.requiresUsername) {
                 setStep('username');
+              } else {
+                setStep('platform');
               }
               setAmount('');
               setError('');
@@ -476,9 +532,7 @@ export function TipView({
                   <div>
                     <div style={{ fontWeight: 500 }}>{p.name}</div>
                     <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                      {p.id === 'telegram'
-                        ? 'Send to a Telegram username'
-                        : 'Create a tip anyone can claim'}
+                      {p.description}
                     </div>
                   </div>
                 </button>
@@ -488,10 +542,10 @@ export function TipView({
         )}
 
         {/* Step 2: Username Entry */}
-        {step === 'username' && platform && platform !== 'free' && (
+        {step === 'username' && platform && platformConfig?.requiresUsername && (
           <div>
             <div style={{ fontSize: '14px', fontWeight: 500, marginBottom: '12px' }}>
-              Enter {platform === 'telegram' ? 'Telegram' : platform} username
+              {platformConfig.usernameLabel}
             </div>
 
             <div class="form-group">
@@ -499,7 +553,7 @@ export function TipView({
                 <input
                   type="text"
                   class="form-input"
-                  placeholder="@username"
+                  placeholder={platformConfig.usernamePlaceholder}
                   value={username}
                   onInput={(e) => {
                     setUsername((e.target as HTMLInputElement).value);
@@ -544,7 +598,7 @@ export function TipView({
               >
                 <span style={{ fontSize: '24px' }}>✅</span>
                 <div>
-                  <div style={{ fontWeight: 500 }}>@{normalizeUsername(username)}</div>
+                  <div style={{ fontWeight: 500 }}>{platformConfig.formatDisplay(normalizeUsername(username))}</div>
                   <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
                     Registered on Smirk
                   </div>
@@ -562,7 +616,7 @@ export function TipView({
         {step === 'amount' && (
           <form onSubmit={handleSendTip}>
             {/* Show recipient for targeted tips */}
-            {platform && platform !== 'free' && (
+            {platform && platformConfig?.requiresUsername && (
               <div
                 style={{
                   background: 'var(--color-bg-card)',
@@ -575,19 +629,19 @@ export function TipView({
                 }}
               >
                 <span style={{ fontSize: '20px' }}>
-                  {PLATFORMS.find((p) => p.id === platform)?.icon}
+                  {platformConfig.icon}
                 </span>
                 <div>
-                  <div style={{ fontWeight: 500 }}>@{normalizeUsername(username)}</div>
+                  <div style={{ fontWeight: 500 }}>{platformConfig.formatDisplay(normalizeUsername(username))}</div>
                   <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                    {platform}
+                    {platformConfig.name}
                   </div>
                 </div>
               </div>
             )}
 
             {/* Public tip notice */}
-            {platform === 'free' && (
+            {platform && !platformConfig?.requiresUsername && (
               <div
                 style={{
                   background: 'var(--color-bg-card)',

@@ -41,6 +41,7 @@ export function TipView({
   const [platform, setPlatform] = useState<Platform | null>(null);
   const [username, setUsername] = useState('');
   const [amount, setAmount] = useState('');
+  const [senderAnonymous, setSenderAnonymous] = useState(false);
   const [lookupResult, setLookupResult] = useState<SocialLookupResult | null>(null);
   const [lookingUp, setLookingUp] = useState(false);
   const [sending, setSending] = useState(false);
@@ -156,6 +157,7 @@ export function TipView({
         asset,
         amount: amountAtomic,
         recipientBtcPubkey: recipientBtcPubkey || undefined,
+        senderAnonymous,
       });
 
       setTipId(result.tipId);
@@ -639,6 +641,40 @@ export function TipView({
             {error && (
               <p style={{ color: '#ef4444', fontSize: '13px', marginBottom: '12px' }}>{error}</p>
             )}
+
+            {/* Anonymity toggle */}
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '13px',
+                color: 'var(--color-text-muted)',
+                marginBottom: '12px',
+                cursor: 'pointer',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={senderAnonymous}
+                onChange={(e) => setSenderAnonymous((e.target as HTMLInputElement).checked)}
+                style={{
+                  width: '16px',
+                  height: '16px',
+                  accentColor: 'var(--color-primary)',
+                }}
+              />
+              Send anonymously
+              <span
+                style={{
+                  fontSize: '11px',
+                  color: 'var(--color-text-faint)',
+                }}
+                title="Your name won't be shown in channel announcements"
+              >
+                (hide name in announcements)
+              </span>
+            </label>
 
             <button
               type="submit"

@@ -390,7 +390,7 @@ async function handleMessage(message: MessageType): Promise<MessageResponse> {
       return handleLookupSocial(message.platform, message.username);
 
     case 'CREATE_SOCIAL_TIP':
-      return handleCreateSocialTip(message.platform, message.username, message.asset, message.amount, message.recipientBtcPubkey);
+      return handleCreateSocialTip(message.platform, message.username, message.asset, message.amount, message.recipientBtcPubkey, message.senderAnonymous ?? false);
 
     case 'GET_CLAIMABLE_TIPS':
       return handleGetClaimableTips();

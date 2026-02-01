@@ -262,7 +262,8 @@ export async function handleCreateSocialTip(
   username: string,
   asset: AssetType,
   amount: number,
-  recipientBtcPubkey?: string
+  recipientBtcPubkey?: string,
+  senderAnonymous: boolean = false
 ): Promise<MessageResponse<SocialTipResult>> {
   try {
     if (!isUnlocked) {
@@ -644,6 +645,8 @@ export async function handleCreateSocialTip(
       funding_txid: fundingTxid!,
       // For XMR/WOW: send view key so backend can register 0-conf webhook
       tip_view_key: tipViewKeyHex,
+      // Hide sender identity in channel announcements
+      sender_anonymous: senderAnonymous,
     });
 
     if (result.error) {

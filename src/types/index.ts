@@ -218,7 +218,7 @@ export type MessageType =
   | { type: 'DISCONNECT_SITE'; origin: string }
   // Social tipping
   | { type: 'LOOKUP_SOCIAL'; platform: string; username: string }
-  | { type: 'CREATE_SOCIAL_TIP'; platform: string; username: string; asset: AssetType; amount: number; recipientBtcPubkey?: string }
+  | { type: 'CREATE_SOCIAL_TIP'; platform: string; username: string; asset: AssetType; amount: number; recipientBtcPubkey?: string; senderAnonymous?: boolean }
   | { type: 'GET_CLAIMABLE_TIPS' }
   | { type: 'CLAIM_SOCIAL_TIP'; tipId: string; asset: AssetType }
   | { type: 'GET_SENT_SOCIAL_TIPS' }

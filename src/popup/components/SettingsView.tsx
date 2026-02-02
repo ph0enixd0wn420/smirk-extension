@@ -57,9 +57,19 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
   const [connectedSites, setConnectedSites] = useState<ConnectedSite[]>([]);
   const [disconnectingOrigin, setDisconnectingOrigin] = useState<string | null>(null);
 
+  // Extension version from manifest
+  const [version, setVersion] = useState<string>('');
+
   useEffect(() => {
     loadSettings();
     loadConnectedSites();
+    // Get version from manifest
+    try {
+      const manifest = chrome.runtime.getManifest();
+      setVersion(manifest.version);
+    } catch {
+      setVersion('unknown');
+    }
   }, []);
 
   // Apply theme when settings change
@@ -439,7 +449,7 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
 
             {/* Version Info */}
             <div style={{ textAlign: 'center', fontSize: '11px', color: 'var(--color-text-faint)', marginTop: '24px' }}>
-              Smirk Wallet v0.1.0
+              Smirk Wallet v{version}
             </div>
           </>
         )}

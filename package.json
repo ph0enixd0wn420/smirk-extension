@@ -1,6 +1,6 @@
 {
   "name": "smirk-extension",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Non-custodial multi-currency tip wallet browser extension",
   "type": "module",
   "scripts": {
@@ -10,6 +10,8 @@
     "build:firefox": "vite build && cp manifest.firefox.json dist/manifest.json",
     "zip:chrome": "npm run build:chrome && cd dist && zip -r ../smirk-wallet-chrome-v$npm_package_version.zip .",
     "zip:firefox": "npm run build:firefox && cd dist && zip -r ../smirk-wallet-firefox-v$npm_package_version.zip .",
+    "release": "./scripts/release.sh",
+    "bump": "./scripts/bump-version.sh",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"

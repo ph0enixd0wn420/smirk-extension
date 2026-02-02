@@ -161,20 +161,16 @@ export function TipView({
 
       setLookupResult(result);
 
-      if (!result.registered) {
-        const errorMsg = platform === 'smirk'
-          ? `${platformConfig.formatDisplay(normalized)} is not a registered Smirk name. The user needs to set their Smirk name at smirk.cash first.`
-          : `${platformConfig.formatDisplay(normalized)} is not registered on Smirk. They need to link their ${platformConfig.name} account at smirk.cash first.`;
-        setError(errorMsg);
-      } else {
+      if (result.registered) {
         // Check if recipient has a key for this asset
         const recipientKey = result.publicKeys?.[asset];
-        if (!recipientKey) {
-          setError(`${platformConfig.formatDisplay(normalized)} doesn't have a ${ASSETS[asset].symbol} wallet set up.`);
-        } else {
+        if (recipientKey) {
+          // User is registered and has wallet for this asset - proceed
           setStep('amount');
         }
+        // If no wallet for asset, status badge shows warning, user stays on this step
       }
+      // If not registered, status badge shows warning, user stays on this step
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to look up user');
     } finally {
@@ -598,29 +594,40 @@ export function TipView({
               </div>
             </div>
 
-            {lookupResult?.registered && !error && (
+            {/* Status indicator after lookup */}
+            {lookupResult && (
               <div
-                style={{
-                  background: 'var(--color-bg-card)',
-                  borderRadius: '8px',
-                  padding: '12px',
-                  marginTop: '12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                }}
+                class={`lookup-status ${lookupResult.registered ? 'registered' : 'not-registered'}`}
+                style={{ marginTop: '12px' }}
               >
-                <span style={{ fontSize: '24px' }}>✅</span>
-                <div>
-                  <div style={{ fontWeight: 500 }}>{platformConfig.formatDisplay(normalizeUsername(username))}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                    Registered on Smirk
-                  </div>
-                </div>
+                {lookupResult.registered ? (
+                  <>
+                    <span class="status-icon">✓</span>
+                    <div>
+                      <div style={{ fontWeight: 500 }}>{platformConfig.formatDisplay(normalizeUsername(username))} is on Smirk</div>
+                      {!lookupResult.publicKeys?.[asset] && (
+                        <div class="status-warning">No {ASSETS[asset].symbol} wallet set up</div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <span class="status-icon">⚠️</span>
+                    <div>
+                      <div style={{ fontWeight: 500 }}>{platformConfig.formatDisplay(normalizeUsername(username))} is not on Smirk</div>
+                      <div class="status-hint">
+                        {platform === 'smirk'
+                          ? 'They need to set a Smirk name at smirk.cash'
+                          : `They need to link their ${platformConfig.name} at smirk.cash`}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
-            {error && (
+            {/* Additional error messages (e.g., network errors) */}
+            {error && !lookupResult && (
               <p style={{ color: '#ef4444', fontSize: '13px', marginTop: '12px' }}>{error}</p>
             )}
           </div>

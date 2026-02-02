@@ -519,6 +519,43 @@ body {
   color: var(--color-error);
 }
 
+/* Lookup Status (social tipping) */
+.lookup-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.lookup-status.registered {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid var(--color-success);
+}
+
+.lookup-status.not-registered {
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-text);
+}
+
+.lookup-status .status-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.lookup-status .status-warning {
+  font-size: 12px;
+  color: var(--color-warning-text);
+  margin-top: 2px;
+}
+
+.lookup-status .status-hint {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
 /* Spinner - works on dark backgrounds by default */
 .spinner {
   width: 20px;

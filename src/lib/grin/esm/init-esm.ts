@@ -119,8 +119,15 @@ export async function initializeGrin(): Promise<void> {
     await Blake2b.initialize();
 
     // Initialize Slate worker (required for async operations like addOutputsAsynchronous)
+    // NOTE: This may fail in service worker contexts (Firefox MV3) since it uses new Worker() and jQuery.
+    // We only use synchronous Slate operations, so failure here is non-fatal.
     console.log('[Grin] Initializing Slate worker...');
-    await Slate.initialize();
+    try {
+      await Slate.initialize();
+      console.log('[Grin] Slate worker initialized');
+    } catch (err) {
+      console.warn('[Grin] Slate worker initialization failed (non-fatal, async operations unavailable):', err);
+    }
 
     // Verify wallet type is GRIN (set at module load time, above)
     console.log('[Grin] Verifying wallet type: ' + Consensus.getWalletType() + ' (expected: ' + Consensus.GRIN_WALLET_TYPE + ')');

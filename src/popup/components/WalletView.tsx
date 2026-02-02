@@ -278,11 +278,11 @@ export function WalletView({ onLock }: { onLock: () => void }) {
   const currentAddress = addresses[activeAsset];
   const currentBalance = balances[activeAsset];
   const currentPendingOutgoing = pendingOutgoing[activeAsset] || 0;
-  // For GRIN, backend balance already accounts for pending sent tips (output locking),
-  // so don't double-count by subtracting them here
-  const currentPendingSentTips = activeAsset === 'grin' ? 0 : (pendingSentTips[activeAsset] || 0);
-  // Deduct both pending txs and pending sent tips from confirmed balance
-  const adjustedConfirmed = Math.max(0, (currentBalance?.confirmed ?? 0) - currentPendingOutgoing - currentPendingSentTips);
+  // Don't subtract pendingSentTips - once the tip transaction is broadcast,
+  // the blockchain/backend balance already reflects the spent funds.
+  // Subtracting again would cause double-counting (user sees 0 balance).
+  // Deduct only pending txs (local sends not yet seen by backend)
+  const adjustedConfirmed = Math.max(0, (currentBalance?.confirmed ?? 0) - currentPendingOutgoing);
 
   // =========================================================================
   // Sub-screens

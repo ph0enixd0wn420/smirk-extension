@@ -15,6 +15,14 @@ export interface SmirkPublicKeys {
   grin: string; // Public key (hex)
 }
 
+export interface SmirkAddresses {
+  btc: string; // bc1q... (bech32 P2WPKH)
+  ltc: string; // ltc1q... (bech32 P2WPKH)
+  xmr: string; // 4... (95 chars, CryptoNote standard address)
+  wow: string; // Wo... (97 chars, CryptoNote standard address)
+  grin: string; // grin1... (bech32 slatepack address)
+}
+
 export interface SmirkSignature {
   asset: 'btc' | 'ltc' | 'xmr' | 'wow' | 'grin';
   signature: string; // Hex encoded signature
@@ -141,6 +149,16 @@ const smirk = {
    */
   async getPublicKeys(): Promise<SmirkPublicKeys | null> {
     return sendRequest<SmirkPublicKeys | null>('getPublicKeys');
+  },
+
+  /**
+   * Get wallet addresses for all assets.
+   * Requires prior connection (connect() must have been called).
+   * Unlike getPublicKeys(), this returns actual blockchain addresses
+   * that can receive funds.
+   */
+  async getAddresses(): Promise<SmirkAddresses | null> {
+    return sendRequest<SmirkAddresses | null>('getAddresses');
   },
 
   /**

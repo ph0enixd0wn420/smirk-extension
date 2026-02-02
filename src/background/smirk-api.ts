@@ -84,6 +84,9 @@ export async function handleSmirkApi(
     case 'getPublicKeys':
       return handleSmirkGetPublicKeys(origin);
 
+    case 'getAddresses':
+      return handleSmirkGetAddresses(origin);
+
     case 'claimPublicTip': {
       const { tipId, fragmentKey } = params as { tipId: string; fragmentKey: string };
       return handleSmirkClaimPublicTip(origin, tipId, fragmentKey);
@@ -174,6 +177,28 @@ async function handleSmirkGetPublicKeys(origin: string): Promise<MessageResponse
 
   await touchConnectedSite(origin);
   return await getPublicKeysResponse();
+}
+
+/**
+ * Handle getAddresses request.
+ *
+ * Returns wallet addresses if the origin is connected and wallet is unlocked.
+ *
+ * @param origin - Website origin
+ * @returns Addresses if connected, null otherwise
+ */
+async function handleSmirkGetAddresses(origin: string): Promise<MessageResponse> {
+  const connected = await isOriginConnected(origin);
+  if (!connected) {
+    return { success: true, data: null };
+  }
+
+  if (!isUnlocked) {
+    return { success: false, error: 'Wallet is locked' };
+  }
+
+  await touchConnectedSite(origin);
+  return await getAddressesResponse();
 }
 
 // =============================================================================
@@ -423,6 +448,35 @@ async function getPublicKeysResponse(): Promise<MessageResponse> {
     success: true,
     data: publicKeys,
   };
+}
+
+/**
+ * Get addresses response for all assets.
+ *
+ * @returns Addresses for BTC, LTC, XMR, WOW, Grin
+ */
+async function getAddressesResponse(): Promise<MessageResponse> {
+  const { handleGetAddresses } = await import('./wallet');
+  const result = await handleGetAddresses();
+
+  if (!result.success || !result.data) {
+    return result;
+  }
+
+  // Transform array format to flat object format
+  const addresses: Record<string, string> = {
+    btc: '',
+    ltc: '',
+    xmr: '',
+    wow: '',
+    grin: '',
+  };
+
+  for (const item of result.data.addresses) {
+    addresses[item.asset] = item.address;
+  }
+
+  return { success: true, data: addresses };
 }
 
 /**

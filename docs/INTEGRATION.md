@@ -137,6 +137,48 @@ Check if the website is currently connected.
 
 **Returns:** `Promise<boolean>`
 
+### `window.smirk.getPublicKeys()`
+
+Get public keys without prompting user (only works if already connected).
+
+**Returns:** `Promise<PublicKeys | null>`
+
+Returns `null` if not connected. Returns error if wallet is locked.
+
+```typescript
+const keys = await window.smirk.getPublicKeys();
+if (keys) {
+  console.log('BTC pubkey:', keys.btc);
+}
+```
+
+### `window.smirk.getAddresses()`
+
+Get wallet addresses for receiving funds. Requires prior connection.
+
+**Returns:** `Promise<Addresses | null>`
+
+```typescript
+interface Addresses {
+  btc: string;   // bc1q... (bech32 P2WPKH)
+  ltc: string;   // ltc1q... (bech32 P2WPKH)
+  xmr: string;   // 4... (95 chars, standard CryptoNote address)
+  wow: string;   // Wo... (97 chars, standard CryptoNote address)
+  grin: string;  // grin1... (bech32 slatepack address)
+}
+```
+
+Returns `null` if not connected. Returns error if wallet is locked.
+
+**Example:**
+```javascript
+const addresses = await window.smirk.getAddresses();
+if (addresses) {
+  console.log('WOW address:', addresses.wow);
+  // Wo4cjRpBfdMXQovzJvmoBjjG8Gr7F5ZUTZAu3gFCWpNc2LrxkYtYi1CrXhfYKXWiXKghMDaSYyv1kvgvkJYG1PY527hNiV1wR
+}
+```
+
 ## Backend Verification
 
 Verify signatures yourself using standard crypto libraries. This is the whole point of cryptographic authentication - no third-party dependency required.
@@ -398,5 +440,6 @@ window.smirk.on('disconnect', () => {
 
 ## Changelog
 
+- **2026-02-02**: Added `getAddresses()` and documented `getPublicKeys()`
 - **2026-01-30**: Initial integration guide
 - Website auth via challenge-response with ECDSA/Ed25519 signatures

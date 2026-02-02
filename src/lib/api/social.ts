@@ -124,6 +124,14 @@ export interface SocialMethods {
   ): Promise<ApiResponse<SocialLookupResponse>>;
 
   /**
+   * Look up a user by their Smirk name.
+   * Returns their public keys if registered.
+   */
+  lookupSmirkName(
+    username: string
+  ): Promise<ApiResponse<SocialLookupResponse>>;
+
+  /**
    * Create a social tip (targeted or public).
    */
   createSocialTip(
@@ -180,6 +188,15 @@ export function createSocialMethods(client: ApiClient): SocialMethods {
     async lookupSocial(platform: string, username: string) {
       return client.request<SocialLookupResponse>(
         `/socials/lookup?platform=${encodeURIComponent(platform)}&username=${encodeURIComponent(username)}`,
+        { method: 'GET' }
+      );
+    },
+
+    async lookupSmirkName(username: string) {
+      // Strip leading @ if present
+      const cleanUsername = username.startsWith('@') ? username.slice(1) : username;
+      return client.request<SocialLookupResponse>(
+        `/users/by-username/${encodeURIComponent(cleanUsername)}`,
         { method: 'GET' }
       );
     },

@@ -59,6 +59,17 @@ const PLATFORMS: PlatformConfig[] = [
     formatDisplay: (u) => u,
   },
   {
+    id: 'smirk',
+    name: 'Smirk Name',
+    icon: '😏',
+    description: 'Send to a Smirk username',
+    requiresUsername: true,
+    usernameLabel: 'Smirk name',
+    usernamePlaceholder: '@username',
+    normalizeUsername: (u) => u.trim().replace(/^@/, '').toLowerCase(),
+    formatDisplay: (u) => `@${u}`,
+  },
+  {
     id: 'free',
     name: 'Public Tip',
     icon: '🌐',
@@ -151,7 +162,10 @@ export function TipView({
       setLookupResult(result);
 
       if (!result.registered) {
-        setError(`${platformConfig.formatDisplay(normalized)} is not registered on Smirk. They need to link their ${platformConfig.name} account at smirk.cash first.`);
+        const errorMsg = platform === 'smirk'
+          ? `${platformConfig.formatDisplay(normalized)} is not a registered Smirk name. The user needs to set their Smirk name at smirk.cash first.`
+          : `${platformConfig.formatDisplay(normalized)} is not registered on Smirk. They need to link their ${platformConfig.name} account at smirk.cash first.`;
+        setError(errorMsg);
       } else {
         // Check if recipient has a key for this asset
         const recipientKey = result.publicKeys?.[asset];

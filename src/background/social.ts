@@ -136,13 +136,17 @@ async function retryWithBackoff<T>(
  * Look up a social platform username to check if they're registered.
  *
  * Returns the user's public keys if registered (for encrypting tips).
+ * Special case: platform "smirk" looks up by Smirk username instead of social platform.
  */
 export async function handleLookupSocial(
   platform: string,
   username: string
 ): Promise<MessageResponse<SocialLookupResult>> {
   try {
-    const result = await api.lookupSocial(platform, username);
+    // Use smirk name lookup for "smirk" platform
+    const result = platform === 'smirk'
+      ? await api.lookupSmirkName(username)
+      : await api.lookupSocial(platform, username);
 
     if (result.error) {
       return { success: false, error: result.error };

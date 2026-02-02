@@ -9,6 +9,48 @@
 
 ---
 
+## WASM Build Transparency
+
+### Current State
+- GRIN WASM: Pre-built binaries from MWC Wallet Standalone zip
+- Monero WASM: Built locally from smirk-wasm-monero (uses monero-oxide)
+- All source repos are public and linked in README
+
+### Phase 1: Documentation (Done)
+- [x] Document WASM sources in README.md
+- [x] Add build-from-source instructions to BUILDING.md
+- [x] Link to Nicolas Flamel's GitHub repos
+
+### Phase 2: Submodules (Future)
+Add WASM source repos as git submodules for easier auditing:
+
+```
+smirk-extension/
+├── deps/
+│   ├── secp256k1-zkp-wasm/  (submodule)
+│   ├── ed25519-wasm/        (submodule)
+│   ├── x25519-wasm/         (submodule)
+│   ├── blake2b-wasm/        (submodule)
+│   └── smirk-wasm-monero/   (submodule)
+```
+
+Benefits:
+- Pinned versions via commit hashes
+- Easy `git diff` to see changes between releases
+- CI can verify submodule commits match expected
+
+### Phase 3: CI-built WASM (Future)
+Automate WASM compilation in GitHub Actions:
+
+1. Install Emscripten + Rust WASM target in CI
+2. Build all WASM from submodules
+3. Compare against committed binaries (or replace them)
+4. Fail CI if WASM differs unexpectedly
+
+This would provide reproducible builds without trusting pre-compiled binaries.
+
+---
+
 ## Future: Additional Platforms
 
 - [ ] Signal / Matrix / Simplex (when backend supports)

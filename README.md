@@ -58,6 +58,30 @@ src/
 | WOW | ed25519 | Same as XMR |
 | GRIN | secp256k1 | Interactive transactions via slatepack |
 
+## WASM Dependencies
+
+Cryptographic operations run client-side via WebAssembly. All keys stay in your browser.
+
+### GRIN Libraries
+From [Nicolas Flamel's MWC Wallet](https://github.com/NicolasFlamel1/MWC-Wallet-Standalone):
+
+| Library | Source | Purpose |
+|---------|--------|---------|
+| secp256k1-zkp | [GitHub](https://github.com/NicolasFlamel1/Secp256k1-zkp-NPM-Package) | Elliptic curve + zero-knowledge proofs |
+| Ed25519 | [GitHub](https://github.com/NicolasFlamel1/Ed25519-NPM-Package) | Digital signatures |
+| X25519 | [GitHub](https://github.com/NicolasFlamel1/X25519-NPM-Package) | Key exchange |
+| BLAKE2b | [GitHub](https://github.com/NicolasFlamel1/BLAKE2b-NPM-Package) | Cryptographic hashing |
+
+### Monero/Wownero
+Custom WASM built from Rust:
+
+| Library | Source | Purpose |
+|---------|--------|---------|
+| smirk-wasm-monero | [GitHub](https://github.com/Such-Software/smirk-wasm-monero) | Transaction signing, key images |
+| monero-oxide | [GitHub](https://github.com/Such-Software/monero-oxide) | Monero protocol implementation |
+
+All source code is open. See [docs/building.md](docs/building.md) for compilation instructions.
+
 ## Website Integration (window.smirk API)
 
 The extension injects a `window.smirk` API into web pages:

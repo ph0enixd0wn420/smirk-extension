@@ -205,3 +205,80 @@ open safari-build/Smirk\ Wallet/Smirk\ Wallet.xcodeproj
 ### WASM not loading
 - Check CSP in manifest: `'wasm-unsafe-eval'` is required
 - Check WASM files are in `web_accessible_resources`
+
+---
+
+## WASM Dependencies
+
+The extension uses WebAssembly for client-side cryptographic operations.
+
+### Pre-built Binaries (Default)
+
+The repository includes pre-built WASM binaries in `src/lib/grin/` for convenience. These are copied from:
+- **GRIN libraries**: [MWC Wallet Standalone](https://github.com/NicolasFlamel1/MWC-Wallet-Standalone)
+- **Monero library**: Built from [smirk-wasm-monero](https://github.com/Such-Software/smirk-wasm-monero)
+
+### Building GRIN WASM from Source
+
+Each library can be compiled from C/C++ source using Emscripten:
+
+```bash
+# Example: Build secp256k1-zkp
+git clone https://github.com/NicolasFlamel1/Secp256k1-zkp-WASM-Wrapper
+cd Secp256k1-zkp-WASM-Wrapper
+npm install
+npm run prepublishOnly  # Downloads C source and compiles with Emscripten
+# Output: secp256k1-zkp-*.wasm, secp256k1-zkp-*.js
+```
+
+Repeat for Ed25519, X25519, and BLAKE2b using their respective repos:
+- https://github.com/NicolasFlamel1/Ed25519-WASM-Wrapper
+- https://github.com/NicolasFlamel1/X25519-WASM-Wrapper
+- https://github.com/NicolasFlamel1/BLAKE2b-WASM-Wrapper
+
+### Building Monero WASM from Source
+
+```bash
+# Prerequisites
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli
+
+# Clone and build
+git clone https://github.com/Such-Software/smirk-wasm-monero
+cd smirk-wasm-monero
+git submodule update --init  # Gets monero-oxide
+
+# Build WASM
+cargo build --target wasm32-unknown-unknown --release
+wasm-bindgen --target web --out-dir pkg \
+  target/wasm32-unknown-unknown/release/smirk_wasm.wasm
+
+# Output: pkg/smirk_wasm_bg.wasm, pkg/smirk_wasm.js
+```
+
+### Integrating Updated WASM
+
+After building, copy files to the extension:
+
+```bash
+# GRIN WASM (from each wrapper repo)
+cp secp256k1-zkp-*.wasm secp256k1-zkp-*.js ../smirk-extension/src/lib/grin/
+cp Ed25519-*.wasm Ed25519-*.js ../smirk-extension/src/lib/grin/
+cp X25519-*.wasm X25519-*.js ../smirk-extension/src/lib/grin/
+cp BLAKE2b-*.wasm BLAKE2b-*.js ../smirk-extension/src/lib/grin/
+
+# Monero WASM (Vite copies from ../smirk-wasm-monero/pkg/ during build)
+```
+
+### Verifying WASM Binaries
+
+To verify pre-built binaries match source:
+
+1. Build from source using steps above
+2. Compare SHA256 hashes:
+   ```bash
+   sha256sum src/lib/grin/*.wasm
+   sha256sum ../smirk-wasm-monero/pkg/*.wasm
+   ```
+
+**Note:** WASM compilation is not fully deterministic. Minor differences may exist due to compiler versions, but functionality should be identical.

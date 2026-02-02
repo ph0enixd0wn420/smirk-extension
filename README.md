@@ -81,6 +81,12 @@ if (window.smirk) {
 
 See [docs/building.md](docs/building.md) for build instructions and store submission guides.
 
+## Community
+
+- [Telegram](https://t.me/smirkwallet)
+- [Discord](https://discord.gg/7EnsaWTm6C)
+- [GitHub Issues](https://github.com/Such-Software/smirk-extension/issues)
+
 ## License
 
 MIT

@@ -13,11 +13,16 @@
 
 - [ ] Signal / Matrix / Simplex (when backend supports)
 
+## In Progress
+
+- [ ] Chrome Web Store submission (pending review)
+- [ ] Firefox Add-ons submission (pending review)
+
 ## Lower Priority
 
+- [ ] Safari port (requires Xcode + Apple Developer account)
 - [ ] Biometric unlock (where supported)
 - [ ] Address book / contacts
-- [ ] Firefox/Safari ports
 - [ ] Hardware wallet support
 
 ---
@@ -39,6 +44,13 @@ Extension MUST use `next_child_index` from `/wallet/grin/user/{id}/outputs`.
 
 ## Completed
 
+- [x] **Sweep Retry Mechanism** (2026-02-01)
+  - Two-phase claim: pending -> claiming -> claimed
+  - Sweep failures can be retried, funds never stuck
+  - Sender notification on successful claim
+- [x] **Claimable Tips Banner** (2026-02-01)
+  - Banner on main screen when tips ready to claim
+  - Badge counts on History tabs (Received/Sent)
 - [x] **Discord Tipping** (2026-02-01)
   - Discord added to platform selector
   - Scalable platform registry (data-driven UI)

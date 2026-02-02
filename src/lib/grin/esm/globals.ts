@@ -27,9 +27,11 @@ if (typeof window === 'undefined') {
 installMockWorker();
 
 // Type augmentation for globalThis
+// Note: Some names conflict with existing TypeScript types, so we use @ts-ignore
 declare global {
   var $: any;
   var jQuery: any;
+  // @ts-ignore - BigNumber conflicts with bignumber.js module
   var BigNumber: any;
   var bech32: any;
   var bech32m: any;
@@ -47,6 +49,7 @@ declare global {
   var Blake2b: any;
   var Consensus: any;
   var Identifier: any;
+  // @ts-ignore - Crypto conflicts with Web Crypto API type
   var Crypto: any;
   var Seed: any;
   var SlateInput: any;

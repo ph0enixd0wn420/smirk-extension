@@ -6,7 +6,7 @@ import { useState } from 'preact/hooks';
 import type { AssetType } from '@/types';
 import type { TxHistoryEntry } from './types';
 import { formatBalance } from '../../shared';
-import { copyToClipboard } from '../Toast';
+import { copyToClipboard, type ToastType } from '../Toast';
 
 // Default number of transactions shown (fits without scrollbar)
 const DEFAULT_LIMIT = 3;
@@ -44,7 +44,7 @@ interface Props {
   loading: boolean;
   cancellingTxId: string | null;
   onCancel: (tx: TxHistoryEntry, e: Event) => void;
-  showToast: (message: string, type?: 'success' | 'error') => void;
+  showToast: (message: string, type?: ToastType) => void;
 }
 
 export function TxList({
@@ -140,7 +140,7 @@ function TxItem({
   isGrin: boolean;
   cancellingTxId: string | null;
   onCancel: (tx: TxHistoryEntry, e: Event) => void;
-  showToast: (message: string, type?: 'success' | 'error') => void;
+  showToast: (message: string, type?: ToastType) => void;
 }) {
   const received = tx.total_received ?? 0;
   const sent = tx.total_sent ?? 0;

@@ -251,10 +251,10 @@ export function createSocialMethods(client: ApiClient): SocialMethods {
     },
 
     async getPublicSocialTip(tipId: string) {
+      // Public endpoint - works with or without auth
       return client.request<PublicTipInfo>(
         `/tips/social/${tipId}/public`,
-        { method: 'GET' },
-        false // No auth required
+        { method: 'GET' }
       );
     },
   };

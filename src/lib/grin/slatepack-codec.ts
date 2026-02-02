@@ -180,7 +180,7 @@ export async function encodeSlatepack(
 
   const serializedSlate = slate.raw.serialize(true, slatePurpose, true); // isMainnet, purpose, preferBinary
   console.log('[Grin.encodeSlatepack] Serialized slate length:', serializedSlate?.length);
-  console.log('[Grin.encodeSlatepack] First 64 bytes:', Array.from(serializedSlate?.slice(0, 64) || []).map((b: number) => b.toString(16).padStart(2, '0')).join(' '));
+  console.log('[Grin.encodeSlatepack] First 64 bytes:', Array.from((serializedSlate?.slice(0, 64) || []) as Uint8Array).map((b: number) => b.toString(16).padStart(2, '0')).join(' '));
 
   // Encode as slatepack
   // encodeSlatepack(slate, secretKey, publicKey)

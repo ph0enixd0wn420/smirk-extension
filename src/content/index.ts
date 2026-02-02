@@ -11,13 +11,15 @@
  */
 
 // Inline browser API (content scripts can't import from chunks)
-declare const globalThis: typeof global & {
+// Firefox uses window.browser, Chrome uses window.chrome
+// Use type assertions to avoid TypeScript conflicts
+const browserWindow = window as typeof window & {
   browser?: typeof chrome;
   chrome?: typeof chrome;
 };
 
-const isFirefox = typeof globalThis.browser !== 'undefined';
-const browserAPI = (isFirefox ? globalThis.browser : globalThis.chrome) as typeof chrome;
+const isFirefox = typeof browserWindow.browser !== 'undefined';
+const browserAPI = (isFirefox ? browserWindow.browser : browserWindow.chrome) as typeof chrome;
 
 const runtime = {
   sendMessage<T = unknown>(message: unknown): Promise<T> {

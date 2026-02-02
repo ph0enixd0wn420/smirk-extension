@@ -4,7 +4,7 @@ import { useContext } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 
 // Toast types
-type ToastType = 'success' | 'error' | 'info';
+export type ToastType = 'success' | 'error' | 'info';
 
 interface Toast {
   id: number;

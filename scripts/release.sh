@@ -50,13 +50,10 @@ echo ""
 # Create releases directory
 mkdir -p releases
 
-# Typecheck (warn only, don't block release)
+# Typecheck (fail on errors)
 echo -e "${YELLOW}Running typecheck...${NC}"
-if npm run typecheck; then
-    echo -e "${GREEN}Typecheck passed${NC}"
-else
-    echo -e "${YELLOW}Warning: Typecheck has errors (continuing anyway)${NC}"
-fi
+npm run typecheck
+echo -e "${GREEN}Typecheck passed${NC}"
 
 # Run tests
 echo -e "${YELLOW}Running tests...${NC}"

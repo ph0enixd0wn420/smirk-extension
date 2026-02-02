@@ -21,29 +21,46 @@ import { Uuid } from './uuid.esm';
 import { CRC32 } from './crc32.esm';
 import { Hash } from './hash.esm';
 
-// Phase 2: WASM module wrappers
+// Phase 2: WASM module wrappers (JavaScript ESM without TypeScript types)
+// @ts-ignore - JavaScript ESM module
 import { Secp256k1Zkp } from '../secp256k1-zkp.esm.js';
+// @ts-ignore - JavaScript ESM module
 import { Ed25519 } from '../Ed25519.esm.js';
+// @ts-ignore - JavaScript ESM module
 import { X25519 } from '../X25519.esm.js';
+// @ts-ignore - JavaScript ESM module
 import { Blake2b } from '../BLAKE2b.esm.js';
 
 // Phase 4: Utility classes
+// @ts-ignore - JavaScript ESM module
 import { Common } from '../common.esm.js';
+// @ts-ignore - JavaScript ESM module
 import { BitReader } from '../bit_reader.esm.js';
+// @ts-ignore - JavaScript ESM module
 import { BitWriter } from '../bit_writer.esm.js';
 
 // Phase 5: Crypto-dependent modules
+// @ts-ignore - JavaScript ESM module
 import { Identifier } from '../identifier.esm.js';
+// @ts-ignore - JavaScript ESM module
 import { Consensus } from '../consensus.esm.js';
+// @ts-ignore - JavaScript ESM module
 import { Crypto } from '../crypto.esm.js';
+// @ts-ignore - JavaScript ESM module
 import { Seed } from '../seed.esm.js';
 
 // Phase 6: Slate modules
+// @ts-ignore - JavaScript ESM module
 import { SlateInput } from '../slate_input.esm.js';
+// @ts-ignore - JavaScript ESM module
 import { SlateOutput } from '../slate_output.esm.js';
+// @ts-ignore - JavaScript ESM module
 import { SlateKernel } from '../slate_kernel.esm.js';
+// @ts-ignore - JavaScript ESM module
 import { SlateParticipant } from '../slate_participant.esm.js';
+// @ts-ignore - JavaScript ESM module
 import { Slatepack } from '../slatepack.esm.js';
+// @ts-ignore - JavaScript ESM module
 import { Slate } from '../slate.esm.js';
 
 // Phase 7: Stub classes for MWC wallet dependencies
@@ -53,6 +70,7 @@ import { Tor, Wallet, HardwareWallet } from './stubs';
 globalThis.getResource = getResource;
 
 // Set all modules as globals for legacy code compatibility
+// @ts-ignore - Setting BigNumber on globalThis for MWC wallet compatibility
 globalThis.BigNumber = BigNumber;
 globalThis.bech32 = bech32;
 globalThis.bech32m = bech32m;

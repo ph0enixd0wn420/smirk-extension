@@ -598,8 +598,8 @@ async function signMessageWithAllKeys(message: string): Promise<Array<{
       const sig = secp256k1.sign(msgHash, privateKey);
       console.log('[SignMessage] BTC signature:', sig.toCompactHex());
 
-      // Also verify signature locally
-      const isValidLocally = secp256k1.verify(sig, msgHash, derivedPubKey);
+      // Also verify signature locally (use raw bytes for verify)
+      const isValidLocally = secp256k1.verify(sig.toCompactRawBytes(), msgHash, derivedPubKey);
       console.log('[SignMessage] BTC local verify:', isValidLocally);
 
       signatures.push({
@@ -737,7 +737,7 @@ async function handleSmirkClaimPublicTip(
   // Claim the tip
   const result = await handleClaimPublicTip(tipId, fragmentKey);
 
-  if (result.success && result.data) {
+  if (result.success) {
     return {
       success: true,
       data: {
@@ -746,12 +746,10 @@ async function handleSmirkClaimPublicTip(
       },
     };
   } else {
+    // Claim failed - return error at top level
     return {
-      success: true, // API call succeeded, but claim failed
-      data: {
-        success: false,
-        error: result.error || 'Failed to claim tip',
-      },
+      success: false,
+      error: result.error,
     };
   }
 }

@@ -17,10 +17,12 @@ import './wasm-loader';
 // The file sets module.exports = Secp256k1Zkp at the end
 
 // Import as CommonJS module - Vite handles this transformation
+// @ts-ignore - JavaScript module without TypeScript types
 import Secp256k1ZkpModule from '../secp256k1-zkp-0.0.29.js';
 
 // The module exports the Secp256k1Zkp class
-export const Secp256k1Zkp = Secp256k1ZkpModule as typeof Secp256k1ZkpClass;
+// Use 'as any' then cast to the interface type to avoid TypeScript errors
+export const Secp256k1Zkp: Secp256k1ZkpClass = Secp256k1ZkpModule as any;
 
 // Type definition for the class
 interface Secp256k1ZkpClass {

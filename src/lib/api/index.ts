@@ -21,7 +21,7 @@ export class SmirkApi extends ApiClient implements
   AuthMethods,
   KeysMethods,
   TipsMethods,
-  SocialMethods,
+  Omit<SocialMethods, 'getReceivedTips'>,
   WalletUtxoMethods,
   WalletLwsMethods,
   GrinMethods
@@ -47,6 +47,7 @@ export class SmirkApi extends ApiClient implements
 
   // Social tipping methods
   lookupSocial: SocialMethods['lookupSocial'];
+  lookupSmirkName: SocialMethods['lookupSmirkName'];
   createSocialTip: SocialMethods['createSocialTip'];
   getClaimableTips: SocialMethods['getClaimableTips'];
   getReceivedSocialTips: SocialMethods['getReceivedTips'];
@@ -122,6 +123,7 @@ export class SmirkApi extends ApiClient implements
 
     // Assign social tipping methods
     this.lookupSocial = social.lookupSocial;
+    this.lookupSmirkName = social.lookupSmirkName;
     this.createSocialTip = social.createSocialTip;
     this.getClaimableTips = social.getClaimableTips;
     this.getReceivedSocialTips = social.getReceivedTips;

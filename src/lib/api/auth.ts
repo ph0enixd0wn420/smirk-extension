@@ -9,7 +9,7 @@ export interface AuthMethods {
     accessToken: string;
     refreshToken: string;
     expiresIn: number;
-    user: { id: string; telegramId: number; telegramUsername?: string };
+    user: { id: string; telegramId?: number; telegramUsername?: string };
   }>>;
 
   refreshToken(refreshToken: string): Promise<ApiResponse<{
@@ -37,7 +37,7 @@ export interface AuthMethods {
     accessToken: string;
     refreshToken: string;
     expiresIn: number;
-    user: { id: string; username?: string; isNew: boolean };
+    user: { id: string; username?: string; isNew?: boolean };
   }>>;
 
   checkRestore(params: {

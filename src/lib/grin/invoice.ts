@@ -816,8 +816,8 @@ export async function finalizeInvoice(
 
   // Verify slate IDs match (extract UUID from binary)
   // Binary format: [0-2] header, [3] block header version, [4-19] UUID (16 bytes)
-  const i2Uuid = Array.from(i2Data.slice(4, 20))
-    .map(b => b.toString(16).padStart(2, '0'))
+  const i2Uuid = Array.from(i2Data.slice(4, 20) as Uint8Array)
+    .map((b: number) => b.toString(16).padStart(2, '0'))
     .join('');
   const formattedUuid = `${i2Uuid.slice(0, 8)}-${i2Uuid.slice(8, 12)}-${i2Uuid.slice(12, 16)}-${i2Uuid.slice(16, 20)}-${i2Uuid.slice(20)}`;
   console.log('[finalizeInvoice] I2 slate ID:', formattedUuid);

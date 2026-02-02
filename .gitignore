@@ -1,8 +1,8 @@
 node_modules/
 dist/
+releases/
 *.log
 .DS_Store
-scripts/
 *.zip
 
 # Environment files (keep .env.example)

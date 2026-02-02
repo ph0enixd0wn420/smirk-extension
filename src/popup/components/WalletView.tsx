@@ -59,10 +59,6 @@ export function WalletView({ onLock }: { onLock: () => void }) {
   const [pendingTipsCount, setPendingTipsCount] = useState(0);
   // Count of claimable tips (ready to claim)
   const [claimableTipsCount, setClaimableTipsCount] = useState(0);
-  // Pending sent tips amounts (tips sent but not yet claimed/clawed back)
-  const [pendingSentTips, setPendingSentTips] = useState<Record<AssetType, number>>({
-    btc: 0, ltc: 0, xmr: 0, wow: 0, grin: 0,
-  });
 
   // =========================================================================
   // Effects
@@ -116,29 +112,16 @@ export function WalletView({ onLock }: { onLock: () => void }) {
       const received = await sendMessage<{ tips: Array<{ status: string; is_claimable: boolean }> }>({
         type: 'GET_RECEIVED_TIPS',
       });
-      // Tips still waiting for confirmations
+      // Tips still waiting for confirmations (status 'pending' but not yet claimable)
       const pendingCount = received.tips.filter(
-        (t) => (t.status === 'pending' || t.status === 'funded') && !t.is_claimable
+        (t) => t.status === 'pending' && !t.is_claimable
       ).length;
       setPendingTipsCount(pendingCount);
-      // Tips ready to claim
+      // Tips ready to claim (status 'pending' and claimable)
       const claimableCount = received.tips.filter(
-        (t) => (t.status === 'pending' || t.status === 'funded') && t.is_claimable
+        (t) => t.status === 'pending' && t.is_claimable
       ).length;
       setClaimableTipsCount(claimableCount);
-
-      // Fetch sent tips (for balance deduction)
-      const sent = await sendMessage<{ tips: Array<{ asset: AssetType; amount: number; status: string }> }>({
-        type: 'GET_SENT_SOCIAL_TIPS',
-      });
-      // Sum pending tips (not claimed, not clawed back) per asset
-      const pendingAmounts: Record<AssetType, number> = { btc: 0, ltc: 0, xmr: 0, wow: 0, grin: 0 };
-      for (const tip of sent.tips) {
-        if (tip.status === 'pending' || tip.status === 'funded') {
-          pendingAmounts[tip.asset] = (pendingAmounts[tip.asset] || 0) + tip.amount;
-        }
-      }
-      setPendingSentTips(pendingAmounts);
     } catch (err) {
       console.error('Failed to fetch pending tips:', err);
     }

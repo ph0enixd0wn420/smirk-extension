@@ -2,12 +2,12 @@
 
 Manual installation for when store versions are pending review.
 
-## Chrome
+## Chrome / Brave / Edge
 
 1. **Download** `smirk-wallet-vX.X.X.zip` from [GitHub Releases](https://github.com/Such-Software/smirk-extension/releases)
 2. **Unzip** to a permanent folder (e.g., `~/Extensions/smirk-wallet/`)
-   > Don't delete this folder - Chrome needs it to run the extension
-3. Open `chrome://extensions`
+   > Don't delete this folder - needed it to run the extension
+3. Open `chrome://extensions` / `brave://extensions` / `edge://extensions`
 4. Enable **Developer Mode** (toggle in top-right)
 5. Click **Load unpacked** and select the unzipped folder
 6. **Pin to toolbar:**
@@ -15,28 +15,6 @@ Manual installation for when store versions are pending review.
    - Find "Smirk Wallet" and click the pin icon
 
 **Updating:** Download new zip, unzip to same folder (overwrite), go to Extensions page, click refresh icon on Smirk Wallet
-
-## Brave
-
-1. **Download** `smirk-wallet-vX.X.X.zip` from [GitHub Releases](https://github.com/Such-Software/smirk-extension/releases)
-2. **Unzip** to a permanent folder
-3. Open `brave://extensions`
-4. Enable **Developer Mode** (toggle in top-right)
-5. Click **Load unpacked** and select the unzipped folder
-6. **Pin to toolbar:**
-   - Click the puzzle piece icon next to the address bar
-   - Find "Smirk Wallet" and click the pin icon
-
-## Edge
-
-1. **Download** `smirk-wallet-vX.X.X.zip` from [GitHub Releases](https://github.com/Such-Software/smirk-extension/releases)
-2. **Unzip** to a permanent folder
-3. Open `edge://extensions`
-4. Enable **Developer Mode** (toggle in left sidebar)
-5. Click **Load unpacked** and select the unzipped folder
-6. **Pin to toolbar:**
-   - Click the puzzle piece icon next to the address bar
-   - Click the eye icon next to "Smirk Wallet" to show in toolbar
 
 ## Firefox
 
@@ -53,6 +31,12 @@ Manual installation for when store versions are pending review.
 1. Go to `about:config` and set `xpinstall.signatures.required` to `false`
 2. Go to `about:addons`, click gear icon, then **Install Add-on From File...**
 3. Select the `.zip` file directly
+
+## Safari
+
+Not yet supported. 
+
+⚠️ **Alpha Release** - Use with small amounts while testing.
 
 ## Safari
 

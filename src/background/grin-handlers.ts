@@ -35,22 +35,14 @@ import type { MessageResponse, GrinSendContext } from '@/types';
 import { bytesToHex, hexToBytes } from '@/lib/crypto';
 import { getAuthState } from '@/lib/storage';
 import { api } from '@/lib/api';
-import {
-  initGrinWallet,
-  signSlate,
-  encodeSlatepack,
-  createSendTransaction,
-  finalizeSlate,
-  reconstructSlateFromSerialized,
-  addInputsToSlate,
-  addOutputsToSlate,
-  getTransactionJson,
-  createInvoice,
-  signInvoice,
-  finalizeInvoice,
-  type GrinKeys,
-  type GrinOutput,
-} from '@/lib/grin';
+// Import only types - functions will be dynamically imported
+// WASM modules use DOM APIs (document.createElement) not available in service workers
+import type { GrinKeys, GrinOutput } from '@/lib/grin';
+
+/** Dynamically import Grin WASM module when needed */
+async function getGrinModule() {
+  return import('@/lib/grin');
+}
 import {
   isUnlocked,
   grinWasmKeys,
@@ -100,7 +92,7 @@ export async function handleInitGrinWallet(): Promise<MessageResponse<{
 
   try {
     // Initialize Grin WASM wallet with mnemonic
-    const keys = await initGrinWallet(unlockedMnemonic);
+    const keys = await (await getGrinModule()).initGrinWallet(unlockedMnemonic);
     setGrinWasmKeys(keys);
 
     // Persist the extended key to session storage so it survives service worker restarts
@@ -235,7 +227,7 @@ export async function handleGrinSignSlate(
       if (!unlockedMnemonic) {
         return { success: false, error: 'Mnemonic not available - please re-unlock wallet' };
       }
-      keys = await initGrinWallet(unlockedMnemonic);
+      keys = await (await getGrinModule()).initGrinWallet(unlockedMnemonic);
       setGrinWasmKeys(keys);
     }
 
@@ -256,10 +248,10 @@ export async function handleGrinSignSlate(
     console.log(`[Grin] Using next_child_index: ${nextChildIndex}`);
 
     // Sign the slate (decodes S1, adds our signature, returns S2 slate and output info)
-    const { slate: signedSlate, outputInfo } = await signSlate(keys, slatepack, nextChildIndex);
+    const { slate: signedSlate, outputInfo } = await (await getGrinModule()).signSlate(keys, slatepack, nextChildIndex);
 
     // Encode the signed slate as a slatepack response for the sender
-    const signedSlatepack = await encodeSlatepack(keys, signedSlate, 'response');
+    const signedSlatepack = await (await getGrinModule()).encodeSlatepack(keys, signedSlate, 'response');
 
     // Submit signed slatepack to relay
     const result = await api.signGrinSlatepack({
@@ -329,7 +321,7 @@ export async function handleGrinSignSlatepack(
       if (!unlockedMnemonic) {
         return { success: false, error: 'Mnemonic not available - please re-unlock wallet' };
       }
-      keys = await initGrinWallet(unlockedMnemonic);
+      keys = await (await getGrinModule()).initGrinWallet(unlockedMnemonic);
       setGrinWasmKeys(keys);
     }
 
@@ -348,10 +340,10 @@ export async function handleGrinSignSlatepack(
     console.log(`[Grin] Using next_child_index: ${nextChildIndex}`);
 
     // Sign the slate (decodes S1, adds our signature, returns S2)
-    const { slate: signedSlate, outputInfo } = await signSlate(keys, slatepackString, nextChildIndex);
+    const { slate: signedSlate, outputInfo } = await (await getGrinModule()).signSlate(keys, slatepackString, nextChildIndex);
 
     // Encode the signed slate as a slatepack response
-    const signedSlatepack = await encodeSlatepack(keys, signedSlate, 'response');
+    const signedSlatepack = await (await getGrinModule()).encodeSlatepack(keys, signedSlate, 'response');
 
     console.log(`[Grin] Signed slatepack, amount: ${signedSlate.amount} nanogrin, output: ${outputInfo.commitment}`);
 
@@ -470,7 +462,7 @@ export async function handleGrinCreateSend(
       if (!unlockedMnemonic) {
         return { success: false, error: 'Mnemonic not available - please re-unlock wallet' };
       }
-      keys = await initGrinWallet(unlockedMnemonic);
+      keys = await (await getGrinModule()).initGrinWallet(unlockedMnemonic);
       setGrinWasmKeys(keys);
     }
 
@@ -513,7 +505,7 @@ export async function handleGrinCreateSend(
     const currentHeight = BigInt(heightsResult.data.grin);
 
     // Create the send transaction (builds S1 slate)
-    const result = await createSendTransaction(
+    const result = await (await getGrinModule()).createSendTransaction(
       keys,
       outputs,
       BigInt(amount),
@@ -637,7 +629,7 @@ export async function handleGrinFinalizeAndBroadcast(
       if (!unlockedMnemonic) {
         return { success: false, error: 'Mnemonic not available - please re-unlock wallet' };
       }
-      keys = await initGrinWallet(unlockedMnemonic);
+      keys = await (await getGrinModule()).initGrinWallet(unlockedMnemonic);
       setGrinWasmKeys(keys);
     }
 
@@ -658,7 +650,7 @@ export async function handleGrinFinalizeAndBroadcast(
 
     // Decode base64 to Uint8Array
     const serializedBytes = Uint8Array.from(atob(sendContext.serializedS1Slate), c => c.charCodeAt(0));
-    const initialSlate = await reconstructSlateFromSerialized(serializedBytes);
+    const initialSlate = await (await getGrinModule()).reconstructSlateFromSerialized(serializedBytes);
     console.log('[Grin] Reconstructed S1 slate for finalization, id:', initialSlate.id);
 
     // Add inputs to the reconstructed slate
@@ -666,7 +658,7 @@ export async function handleGrinFinalizeAndBroadcast(
     if (sendContext.inputs && sendContext.inputs.length > 0) {
       console.log('[Grin] Adding', sendContext.inputs.length, 'inputs to reconstructed S1 slate');
       console.log('[Grin] Input commitments:', sendContext.inputs.map(i => i.commitment.substring(0, 16) + '...'));
-      await addInputsToSlate(initialSlate, sendContext.inputs);
+      await (await getGrinModule()).addInputsToSlate(initialSlate, sendContext.inputs);
       const inputCount = initialSlate.raw.getInputs?.()?.length ?? 0;
       console.log('[Grin] Inputs added to S1 slate, verified count:', inputCount);
       if (inputCount === 0) {
@@ -681,7 +673,7 @@ export async function handleGrinFinalizeAndBroadcast(
     if (sendContext.changeOutput?.proof) {
       console.log('[Grin] Adding change output to reconstructed S1 slate');
       console.log('[Grin] Change commitment:', sendContext.changeOutput.commitment.substring(0, 16) + '...');
-      await addOutputsToSlate(initialSlate, [{
+      await (await getGrinModule()).addOutputsToSlate(initialSlate, [{
         commitment: sendContext.changeOutput.commitment,
         proof: sendContext.changeOutput.proof,
       }]);
@@ -704,7 +696,7 @@ export async function handleGrinFinalizeAndBroadcast(
     }
 
     // Finalize the slate (S2 -> S3)
-    const finalizedSlate = await finalizeSlate(
+    const finalizedSlate = await (await getGrinModule()).finalizeSlate(
       keys,
       slatepackString,
       initialSlate,
@@ -717,7 +709,7 @@ export async function handleGrinFinalizeAndBroadcast(
     secretNonce.fill(0);
 
     // Get the transaction JSON for broadcast
-    const txJson = getTransactionJson(finalizedSlate);
+    const txJson = (await getGrinModule()).getTransactionJson(finalizedSlate);
     console.log('[Grin] Transaction JSON for broadcast:', JSON.stringify(txJson).substring(0, 100) + '...');
 
     // Broadcast to network via backend
@@ -939,7 +931,7 @@ export async function handleGrinCreateInvoice(
       if (!unlockedMnemonic) {
         return { success: false, error: 'Mnemonic not available - please re-unlock wallet' };
       }
-      keys = await initGrinWallet(unlockedMnemonic);
+      keys = await (await getGrinModule()).initGrinWallet(unlockedMnemonic);
       setGrinWasmKeys(keys);
     }
 
@@ -958,7 +950,7 @@ export async function handleGrinCreateInvoice(
     console.log(`[Grin Invoice] Using next_child_index: ${nextChildIndex}`);
 
     // Create the invoice (standard slatepack format)
-    const result = await createInvoice(
+    const result = await (await getGrinModule()).createInvoice(
       keys,
       BigInt(amount),
       nextChildIndex
@@ -1035,7 +1027,7 @@ export async function handleGrinSignInvoice(
       if (!unlockedMnemonic) {
         return { success: false, error: 'Mnemonic not available - please re-unlock wallet' };
       }
-      keys = await initGrinWallet(unlockedMnemonic);
+      keys = await (await getGrinModule()).initGrinWallet(unlockedMnemonic);
       setGrinWasmKeys(keys);
     }
 
@@ -1078,7 +1070,7 @@ export async function handleGrinSignInvoice(
     const currentHeight = BigInt(heightsResult.data.grin);
 
     // Sign the invoice (takes slatepack string directly)
-    const result = await signInvoice(
+    const result = await (await getGrinModule()).signInvoice(
       keys,
       invoiceSlatepack,
       outputs,
@@ -1178,7 +1170,7 @@ export async function handleGrinFinalizeInvoice(
       if (!unlockedMnemonic) {
         return { success: false, error: 'Mnemonic not available - please re-unlock wallet' };
       }
-      keys = await initGrinWallet(unlockedMnemonic);
+      keys = await (await getGrinModule()).initGrinWallet(unlockedMnemonic);
       setGrinWasmKeys(keys);
     }
 
@@ -1195,7 +1187,7 @@ export async function handleGrinFinalizeInvoice(
     const secretNonce = hexToBytes(secretNonceHex);
 
     // Finalize the invoice transaction
-    const finalizedSlate = await finalizeInvoice(
+    const finalizedSlate = await (await getGrinModule()).finalizeInvoice(
       keys,
       signedSlatepack,
       originalSlatepack,
@@ -1228,7 +1220,7 @@ export async function handleGrinFinalizeInvoice(
     });
 
     // Get the transaction JSON for broadcast
-    const txJson = getTransactionJson(finalizedSlate);
+    const txJson = (await getGrinModule()).getTransactionJson(finalizedSlate);
     console.log('[Grin Invoice] Transaction JSON for broadcast');
 
     // Broadcast to network (this will UPDATE the record with kernel_excess)

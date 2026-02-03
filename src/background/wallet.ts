@@ -59,7 +59,8 @@ import {
   getAuthState,
 } from '@/lib/storage';
 import { api } from '@/lib/api';
-import { initGrinWallet } from '@/lib/grin';
+// NOTE: @/lib/grin imports removed - WASM uses DOM APIs not available in service workers
+// Grin operations are handled in grin-handlers.ts with dynamic imports
 import {
   isUnlocked,
   setIsUnlocked,

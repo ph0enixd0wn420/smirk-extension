@@ -316,18 +316,28 @@ async function handleUtxoHistory(
 /**
  * Get transaction history for CryptoNote coins via LWS.
  *
- * LWS returns spent_outputs as candidates that must be verified client-side.
- * We verify each transaction's spent outputs by computing key images with
- * the spend key, matching the same verification we do for balance.
+ * Returns raw LWS data including spent_outputs for client-side verification.
+ * The popup verifies spent outputs using WASM (same as balance verification).
+ * WASM cannot run in service workers, so popup must do the verification.
  *
  * @param asset - 'xmr' or 'wow'
  * @param address - Wallet address
- * @returns Transaction history with verified spent amounts
+ * @returns Transaction history with spent_outputs for popup to verify
  */
 async function handleLwsHistory(
   asset: 'xmr' | 'wow',
   address: string
-): Promise<MessageResponse<{ transactions: Array<{ txid: string; height: number; is_pending?: boolean; total_received?: number; total_sent?: number }> }>> {
+): Promise<MessageResponse<{
+  transactions: Array<{
+    txid: string;
+    height: number;
+    is_pending?: boolean;
+    total_received?: number;
+    spent_outputs?: Array<{ amount: number; key_image: string; tx_pub_key: string; out_index: number }>;
+  }>;
+  viewKeyHex: string;
+  spendKeyHex: string;
+}>> {
   const viewKey = unlockedViewKeys.get(asset);
   if (!viewKey) {
     return { success: false, error: `No ${asset} view key available` };
@@ -343,43 +353,23 @@ async function handleLwsHistory(
     return { success: false, error: result.error };
   }
 
-  // Import verification function (lazy load to avoid circular deps)
-  const { verifySpentOutputs } = await import('@/lib/monero-crypto');
+  // Return raw data - popup will verify spent_outputs using WASM
+  const transactions = result.data!.transactions.map(tx => ({
+    txid: tx.txid,
+    height: tx.height,
+    is_pending: tx.is_pending,
+    total_received: tx.total_received,
+    spent_outputs: tx.spent_outputs,
+  }));
 
-  // Verify spent outputs for each transaction
-  // This ensures we only show transactions where we actually spent something
-  const transactions = await Promise.all(
-    result.data!.transactions.map(async (tx) => {
-      // Convert spent_outputs to the format expected by verifySpentOutputs
-      const candidates = tx.spent_outputs.map(so => ({
-        amount: so.amount,
-        key_image: so.key_image,
-        tx_pub_key: so.tx_pub_key,
-        out_index: so.out_index,
-      }));
-
-      // Verify which spent outputs are actually ours
-      const verified = await verifySpentOutputs(
-        candidates,
-        bytesToHex(viewKey),
-        '', // publicSpendKey not used by verifySpentOutputs
-        bytesToHex(spendKey)
-      );
-
-      // Sum verified spent amounts
-      const verifiedSent = verified.reduce((sum, o) => sum + o.amount, 0);
-
-      return {
-        txid: tx.txid,
-        height: tx.height,
-        is_pending: tx.is_pending,
-        total_received: tx.total_received,
-        total_sent: verifiedSent, // Now verified!
-      };
-    })
-  );
-
-  return { success: true, data: { transactions } };
+  return {
+    success: true,
+    data: {
+      transactions,
+      viewKeyHex: bytesToHex(viewKey),
+      spendKeyHex: bytesToHex(spendKey),
+    },
+  };
 }
 
 /**

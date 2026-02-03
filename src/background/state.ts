@@ -14,7 +14,9 @@
 import type { AssetType } from '@/types';
 import { bytesToHex, hexToBytes } from '@/lib/crypto';
 import { storage } from '@/lib/browser';
-import { initGrinWalletFromExtendedKey, type GrinKeys } from '@/lib/grin';
+// Import only the type - function will be dynamically imported
+// WASM modules use DOM APIs (document.createElement) not available in service workers
+import type { GrinKeys } from '@/lib/grin';
 
 // =============================================================================
 // Constants
@@ -244,6 +246,8 @@ export async function restoreSessionKeys(): Promise<boolean> {
   if (sessionData.grinExtendedPrivateKey) {
     try {
       const extendedKey = hexToBytes(sessionData.grinExtendedPrivateKey);
+      // Dynamic import - WASM modules use DOM APIs not available in service workers
+      const { initGrinWalletFromExtendedKey } = await import('@/lib/grin');
       grinWasmKeys = await initGrinWalletFromExtendedKey(extendedKey);
       console.log('[Session] Restored Grin WASM keys from extended private key');
     } catch (err) {

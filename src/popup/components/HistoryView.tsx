@@ -7,6 +7,7 @@ import type { AssetType } from '@/types';
 import { ASSETS, formatBalance, sendMessage } from '../shared';
 import { useToast, copyToClipboard } from './Toast';
 import { TxList, type TxHistoryEntry } from './wallet';
+import { verifySpentOutputs } from '@/lib/monero-crypto';
 
 type TabType = 'transactions' | 'received' | 'sent';
 
@@ -104,11 +105,60 @@ export function HistoryView({ activeAsset, initialTab, onBack }: HistoryViewProp
     setLoadingTx(true);
     setError(null);
     try {
-      const result = await sendMessage<{ transactions: TxHistoryEntry[] }>({
-        type: 'GET_HISTORY',
-        asset: activeAsset,
-      });
-      setTransactions(result.transactions);
+      const isXmrWow = activeAsset === 'xmr' || activeAsset === 'wow';
+
+      if (isXmrWow) {
+        // XMR/WOW: Service worker returns raw data, we verify spent outputs here
+        const result = await sendMessage<{
+          transactions: Array<{
+            txid: string;
+            height: number;
+            is_pending?: boolean;
+            total_received?: number;
+            spent_outputs?: Array<{ amount: number; key_image: string; tx_pub_key: string; out_index: number }>;
+          }>;
+          viewKeyHex: string;
+          spendKeyHex: string;
+        }>({
+          type: 'GET_HISTORY',
+          asset: activeAsset,
+        });
+
+        // Verify spent outputs for each transaction using WASM
+        const verifiedTxs = await Promise.all(
+          result.transactions.map(async (tx) => {
+            let verifiedSent = 0;
+            if (tx.spent_outputs && tx.spent_outputs.length > 0) {
+              const verified = await verifySpentOutputs(
+                tx.spent_outputs,
+                result.viewKeyHex,
+                '', // publicSpendKey not used
+                result.spendKeyHex
+              );
+              verifiedSent = verified.reduce((sum, o) => sum + o.amount, 0);
+            }
+            return {
+              txid: tx.txid,
+              height: tx.height,
+              is_pending: tx.is_pending,
+              total_received: tx.total_received,
+              total_sent: verifiedSent,
+            };
+          })
+        );
+        // Filter to only show transactions with activity (received or sent > 0)
+        const relevantTxs = verifiedTxs.filter(tx =>
+          (tx.total_received && tx.total_received > 0) || tx.total_sent > 0
+        );
+        setTransactions(relevantTxs);
+      } else {
+        // Other assets: transactions come pre-processed
+        const result = await sendMessage<{ transactions: TxHistoryEntry[] }>({
+          type: 'GET_HISTORY',
+          asset: activeAsset,
+        });
+        setTransactions(result.transactions);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load transactions');
     } finally {

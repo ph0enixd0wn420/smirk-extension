@@ -77,7 +77,8 @@ import {
 } from '@/lib/crypto';
 import { btcAddress, ltcAddress, xmrAddress, wowAddress } from '@/lib/address';
 import { createSignedTransaction as createBtcSignedTransaction, type Utxo } from '@/lib/btc-tx';
-import { sendTransaction as sendXmrTransaction, createSignedTransaction as createXmrSignedTransaction } from '@/lib/xmr-tx';
+// XMR/Grin WASM modules use APIs not available in service workers (document.createElement, etc.)
+// Import them dynamically when needed instead of at module load time
 import { sha256 } from '@noble/hashes/sha256';
 import { ed25519 } from '@noble/curves/ed25519';
 import { isUnlocked, unlockedKeys, unlockedViewKeys, grinWasmKeys, setGrinWasmKeys, unlockedMnemonic } from './state';
@@ -96,13 +97,24 @@ import {
 } from '@/lib/storage';
 import { getAddressForAsset } from './wallet';
 import { encrypt, decrypt, deriveKeyFromPassword } from '@/lib/crypto';
-import {
-  initGrinWallet,
-  createGrinVoucherTransaction,
-  claimGrinVoucher,
-  getTransactionJson,
-  type GrinOutput,
-} from '@/lib/grin';
+// Grin types only (no runtime code)
+import type { GrinOutput } from '@/lib/grin';
+
+// =============================================================================
+// Dynamic WASM Module Imports
+// =============================================================================
+// These modules use APIs not available in service workers (document.createElement, etc.)
+// We import them dynamically when needed instead of at module load time.
+
+/** Dynamically import XMR transaction module */
+async function getXmrTx() {
+  return import('@/lib/xmr-tx');
+}
+
+/** Dynamically import Grin wallet module */
+async function getGrinModule() {
+  return import('@/lib/grin');
+}
 
 /**
  * Helper to retry an async operation with exponential backoff.
@@ -407,7 +419,8 @@ export async function handleCreateSocialTip(
 
       // Step 3: Send funds to tip address
       try {
-        const txResult = await sendXmrTransaction(
+        const xmrTx = await getXmrTx();
+        const txResult = await xmrTx.sendTransaction(
           asset,
           senderAddress,
           bytesToHex(senderViewKey),
@@ -439,7 +452,8 @@ export async function handleCreateSocialTip(
         if (!unlockedMnemonic) {
           return { success: false, error: 'Grin wallet not initialized - please re-unlock wallet' };
         }
-        keys = await initGrinWallet(unlockedMnemonic);
+        const grinModule = await getGrinModule();
+        keys = await grinModule.initGrinWallet(unlockedMnemonic);
         setGrinWasmKeys(keys);
       }
 
@@ -484,9 +498,10 @@ export async function handleCreateSocialTip(
       console.log(`[SocialTip] Creating Grin voucher for ${amount} nanogrin`);
 
       // Create the voucher transaction
+      const grinModule = await getGrinModule();
       let voucherResult;
       try {
-        voucherResult = await createGrinVoucherTransaction(
+        voucherResult = await grinModule.createGrinVoucherTransaction(
           keys,
           grinOutputs,
           BigInt(amount),
@@ -510,7 +525,7 @@ export async function handleCreateSocialTip(
       });
 
       // Broadcast the voucher transaction (this will UPDATE the record with kernel_excess)
-      const txJson = getTransactionJson(voucherResult.slate);
+      const txJson = grinModule.getTransactionJson(voucherResult.slate);
       console.log('[SocialTip] Broadcasting Grin voucher transaction...');
 
       const broadcastResult = await api.broadcastGrinTransaction({
@@ -891,12 +906,13 @@ export async function handleClaimSocialTip(
       console.log(`[ClaimTip] Grin voucher: commitment=${voucherData.commitment.slice(0, 16)}..., amount=${voucherData.amount}`);
 
       // Ensure Grin WASM wallet is initialized
+      const grinModule = await getGrinModule();
       let keys = grinWasmKeys;
       if (!keys) {
         if (!unlockedMnemonic) {
           return { success: false, error: 'Grin wallet not initialized - please re-unlock wallet' };
         }
-        keys = await initGrinWallet(unlockedMnemonic);
+        keys = await grinModule.initGrinWallet(unlockedMnemonic);
         setGrinWasmKeys(keys);
       }
 
@@ -926,7 +942,7 @@ export async function handleClaimSocialTip(
       // Build the voucher claim transaction
       let claimResult;
       try {
-        claimResult = await claimGrinVoucher(
+        claimResult = await grinModule.claimGrinVoucher(
           keys,
           {
             commitment: voucherData.commitment,
@@ -959,7 +975,7 @@ export async function handleClaimSocialTip(
       });
 
       // Broadcast the claim transaction (this will UPDATE the record with kernel_excess)
-      const txJson = getTransactionJson(claimResult.slate);
+      const txJson = grinModule.getTransactionJson(claimResult.slate);
       console.log('[ClaimTip] Broadcasting Grin voucher claim transaction...');
 
       const broadcastResult = await api.broadcastGrinTransaction({
@@ -1096,7 +1112,8 @@ export async function handleClaimSocialTip(
       // Sweep funds from tip wallet to recipient
       try {
         console.log(`[ClaimTip] Calling sendXmrTransaction for ${tipAsset} sweep...`);
-        const txResult = await sendXmrTransaction(
+        const xmrTx = await getXmrTx();
+        const txResult = await xmrTx.sendTransaction(
           tipAsset,
           tip_address,
           bytesToHex(tipViewKey),
@@ -1106,7 +1123,7 @@ export async function handleClaimSocialTip(
           'mainnet',
           true // sweep mode
         );
-        console.log(`[ClaimTip] sendXmrTransaction returned: txHash=${txResult.txHash}, fee=${txResult.fee}, amount=${txResult.actualAmount}`);
+        console.log(`[ClaimTip] sendTransaction returned: txHash=${txResult.txHash}, fee=${txResult.fee}, amount=${txResult.actualAmount}`);
         finalTxid = txResult.txHash;
         actualAmount = txResult.actualAmount;
 
@@ -1296,7 +1313,8 @@ export async function handleRetrySweep(
       const tipViewKey = deriveViewKeyFromSpendKey(tipSpendKey);
 
       try {
-        const txResult = await sendXmrTransaction(
+        const xmrTx = await getXmrTx();
+        const txResult = await xmrTx.sendTransaction(
           tipAsset,
           tip_address,
           bytesToHex(tipViewKey),
@@ -1472,12 +1490,13 @@ export async function handleClaimPublicTip(
       console.log(`[ClaimPublicTip] Grin voucher: commitment=${voucherData.commitment.slice(0, 16)}..., amount=${voucherData.amount}`);
 
       // Initialize Grin WASM wallet
+      const grinModule = await getGrinModule();
       let keys = grinWasmKeys;
       if (!keys) {
         if (!unlockedMnemonic) {
           return { success: false, error: 'Grin wallet not initialized - please re-unlock wallet' };
         }
-        keys = await initGrinWallet(unlockedMnemonic);
+        keys = await grinModule.initGrinWallet(unlockedMnemonic);
         setGrinWasmKeys(keys);
       }
 
@@ -1503,7 +1522,7 @@ export async function handleClaimPublicTip(
 
       let claimGrinResult;
       try {
-        claimGrinResult = await claimGrinVoucher(
+        claimGrinResult = await grinModule.claimGrinVoucher(
           keys,
           {
             commitment: voucherData.commitment,
@@ -1536,7 +1555,7 @@ export async function handleClaimPublicTip(
       });
 
       // Broadcast (this will UPDATE the record with kernel_excess)
-      const txJson = getTransactionJson(claimGrinResult.slate);
+      const txJson = grinModule.getTransactionJson(claimGrinResult.slate);
       const broadcastResult = await api.broadcastGrinTransaction({
         userId: authState.userId,
         slateId: claimGrinResult.slate.id,
@@ -1616,7 +1635,8 @@ export async function handleClaimPublicTip(
       console.log(`[ClaimPublicTip] Sweeping ${tipAsset} from ${tip_address} to ${recipientAddress}`);
 
       try {
-        const txResult = await sendXmrTransaction(
+        const xmrTx = await getXmrTx();
+        const txResult = await xmrTx.sendTransaction(
           tipAsset,
           tip_address,
           bytesToHex(tipViewKey),
@@ -1798,7 +1818,8 @@ export async function handleClawbackSocialTip(
       const tipViewKey = deriveViewKeyFromSpendKey(tipSpendKey);
 
       try {
-        const txResult = await sendXmrTransaction(
+        const xmrTx = await getXmrTx();
+        const txResult = await xmrTx.sendTransaction(
           tipAsset,
           pendingTip.tipAddress,
           bytesToHex(tipViewKey),
@@ -1853,12 +1874,13 @@ export async function handleClawbackSocialTip(
       console.log(`[Clawback] Grin voucher: commitment=${voucherData.commitment.slice(0, 16)}..., amount=${voucherData.amount}`);
 
       // Ensure Grin WASM wallet is initialized
+      const grinModule = await getGrinModule();
       let keys = grinWasmKeys;
       if (!keys) {
         if (!unlockedMnemonic) {
           return { success: false, error: 'Grin wallet not initialized - please re-unlock wallet' };
         }
-        keys = await initGrinWallet(unlockedMnemonic);
+        keys = await grinModule.initGrinWallet(unlockedMnemonic);
         setGrinWasmKeys(keys);
       }
 
@@ -1888,7 +1910,7 @@ export async function handleClawbackSocialTip(
       // Build the voucher sweep transaction (same as claiming)
       let claimResult;
       try {
-        claimResult = await claimGrinVoucher(
+        claimResult = await grinModule.claimGrinVoucher(
           keys,
           {
             commitment: voucherData.commitment,
@@ -1922,7 +1944,7 @@ export async function handleClawbackSocialTip(
       });
 
       // Broadcast the clawback transaction (this will UPDATE the record with kernel_excess)
-      const txJson = getTransactionJson(claimResult.slate);
+      const txJson = grinModule.getTransactionJson(claimResult.slate);
       console.log('[Clawback] Broadcasting Grin voucher clawback transaction...');
 
       const broadcastResult = await api.broadcastGrinTransaction({

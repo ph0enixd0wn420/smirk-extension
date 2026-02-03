@@ -75,7 +75,13 @@ export interface WalletLwsMethods {
       timestamp: string;
       is_pending: boolean;
       total_received: number;
-      total_sent: number;
+      /** Spent output candidates - client must verify with spend key */
+      spent_outputs: Array<{
+        amount: number;
+        key_image: string;
+        tx_pub_key: string;
+        out_index: number;
+      }>;
       payment_id?: string;
     }>;
     scanned_height: number;

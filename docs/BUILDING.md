@@ -24,50 +24,37 @@ npm run typecheck
 4. Click "Load unpacked"
 5. Select the `dist` folder
 
-## Release Checklist
-
-Before releasing a new version:
-
-1. **Update version numbers:**
-   - `package.json` - `"version": "x.x.x"`
-   - `manifest.json` - `"version": "x.x.x"`
-   - `manifest.firefox.json` - `"version": "x.x.x"`
-
-2. **Test on both browsers:**
-   - Chrome: Load unpacked from `dist` after `npm run build:chrome`
-   - Firefox: `cd dist && web-ext run` after `npm run build:firefox`
-
-3. **Build release zips:**
-   ```bash
-   npm run zip:chrome     # Creates smirk-wallet-chrome-vX.X.X.zip
-   npm run zip:firefox    # Creates smirk-wallet-firefox-vX.X.X.zip
-   ```
-
-4. **Create GitHub release:**
-   - Tag: `vX.X.X`
-   - Attach both zip files
-   - Include changelog
-
-5. **Submit to stores:**
-   - Chrome Web Store
-   - Firefox Add-ons
-
----
-
-## Building for Release
-
-Chrome and Firefox require different manifests:
-- **Chrome**: Uses `service_worker` (manifest.json)
-- **Firefox**: Uses `scripts` (manifest.firefox.json)
+## Release Process
 
 ```bash
-# Build for Chrome (uses manifest.json)
-npm run build:chrome
-npm run zip:chrome
+# 1. Bump version in all files (package.json + both manifests)
+npm run bump 0.1.5
 
-# Build for Firefox (uses manifest.firefox.json)
-npm run build:firefox
-npm run zip:firefox
+# 2. Commit the version bump
+git add -A && git commit -m "chore: bump version to 0.1.5"
+
+# 3. Build, test, and create release artifacts
+npm run release
+
+# 4. Push commits and tag
+git push && git push origin v0.1.5
+```
+
+The `npm run release` script:
+- Runs typecheck and tests
+- Builds Chrome and Firefox zips
+- Creates source archive for Mozilla review
+- Creates annotated git tag
+- Outputs to `releases/` directory
+
+### Manual Testing (Optional)
+
+```bash
+# Chrome: load dist/ as unpacked extension
+npm run build:chrome
+
+# Firefox: requires web-ext CLI
+npm run build:firefox && cd dist && web-ext run
 ```
 
 ---
@@ -78,7 +65,7 @@ npm run zip:firefox
 
 ### First Submission
 
-1. Click "New Item" → Upload `smirk-wallet-chrome-vX.X.X.zip`
+1. Click "New Item" → Upload `releases/smirk-wallet-chrome-vX.X.X.zip`
 2. Fill in listing details:
    - **Name:** Smirk Wallet
    - **Summary:** Non-custodial multi-currency wallet for crypto tipping
@@ -119,8 +106,8 @@ Firefox MV3 has key differences:
 
 1. Click "Submit a New Add-on"
 2. Select "On this site" for distribution
-3. Upload `smirk-wallet-firefox-vX.X.X.zip`
-4. **Source code required:** Upload full source repo as zip (Firefox reviews source)
+3. Upload `releases/smirk-wallet-firefox-vX.X.X.zip`
+4. **Source code required:** Upload `releases/smirk-wallet-X.X.X-src.zip`
 5. Fill in listing details
 6. Submit for review
 
@@ -147,7 +134,7 @@ cd dist && web-ext run
 ### Updates
 
 1. Go to existing add-on → "Manage" → "Upload New Version"
-2. Upload new zip + source zip
+2. Upload `releases/smirk-wallet-firefox-vX.X.X.zip` + `releases/smirk-wallet-X.X.X-src.zip`
 3. Submit for review
 
 ---

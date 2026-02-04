@@ -24,16 +24,22 @@ src/
 ├── background/     # Service worker (modular)
 │   ├── index.ts        # Message routing
 │   ├── state.ts        # Global state, session persistence
-│   ├── wallet.ts       # Wallet creation, restore, unlock/lock
+│   ├── wallet/         # Wallet lifecycle (modular)
+│   │   ├── create.ts       # Mnemonic generation, wallet creation
+│   │   ├── restore.ts      # Wallet restoration
+│   │   ├── session.ts      # Unlock/lock, auth
+│   │   └── security.ts     # Seed reveal, password change
+│   ├── grin/           # Grin WASM operations (modular)
+│   │   ├── send.ts         # Send flow (create, finalize)
+│   │   ├── receive.ts      # Sign incoming slatepacks
+│   │   └── invoice.ts      # RSR invoice flow
+│   ├── social/         # Social tipping (modular)
+│   │   ├── create.ts       # Tip creation
+│   │   ├── claim.ts        # Tip claiming
+│   │   └── sweep.ts        # Unified sweep logic
 │   ├── balance.ts      # Balance queries for all assets
 │   ├── send.ts         # BTC/LTC transaction building
-│   ├── grin-handlers.ts # Grin WASM operations
-│   ├── tips.ts         # Tip decryption and claiming
-│   └── social/         # Social tipping (modular)
-│       ├── create.ts       # Tip creation
-│       ├── claim.ts        # Tip claiming
-│       ├── clawback.ts     # Tip recovery
-│       └── sweep.ts        # Unified sweep logic
+│   └── tips.ts         # Tip decryption and claiming
 ├── content/        # Content script - injects window.smirk
 ├── inject/         # Injected script - window.smirk API implementation
 ├── popup/          # Main UI (Preact components)

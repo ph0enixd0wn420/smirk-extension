@@ -32,9 +32,9 @@ const { initGrinWallet } = await import('@/lib/grin');
 Any file in `src/background/` that gets bundled into `background.js`:
 - `src/background/index.ts`
 - `src/background/social/*.ts`
-- `src/background/grin-handlers.ts`
+- `src/background/grin/*.ts`
+- `src/background/wallet/*.ts`
 - `src/background/state.ts`
-- `src/background/wallet.ts`
 - etc.
 
 ### How to Check
@@ -99,6 +99,40 @@ social/
 
 Files with WASM dependencies are clearly marked. All WASM imports are dynamic.
 
+### Wallet Module Structure
+
+Wallet operations are split into focused modules in `src/background/wallet/`:
+
+```
+wallet/
+├── index.ts          # Re-exports all handlers
+├── types.ts          # Shared interfaces (DerivedKeys, RestoreHeights)
+├── state.ts          # Wallet state queries, onboarding state
+├── addresses.ts      # Address derivation for all assets
+├── registration.ts   # Backend/LWS registration (internal)
+├── create.ts         # Mnemonic generation, wallet creation
+├── restore.ts        # Wallet restoration from seed
+├── session.ts        # Unlock/lock, auth management
+└── security.ts       # Seed reveal, password change
+```
+
+### Grin Module Structure
+
+Grin WASM operations are split into focused modules in `src/background/grin/`:
+
+```
+grin/
+├── index.ts          # Re-exports all handlers
+├── helpers.ts        # WASM loading, key init, auth helpers
+├── backend.ts        # API wrappers (record, lock, spend, broadcast)
+├── init.ts           # Wallet initialization
+├── relay.ts          # Pending slatepacks polling
+├── receive.ts        # Sign incoming slatepacks (WASM: grin)
+├── send.ts           # Send flow - create, finalize (WASM: grin)
+├── invoice.ts        # RSR invoice flow (WASM: grin)
+└── cancel.ts         # Cancel operations
+```
+
 ### WASM Operations
 
 All WASM-dependent code should use dynamic imports. The popup can use static imports since it runs in a normal extension page context with DOM access.
@@ -108,5 +142,9 @@ Files with dynamic WASM imports:
 - `social/claim.ts` - `@/lib/grin`
 - `social/clawback.ts` - `@/lib/grin`
 - `social/sweep.ts` - `@/lib/xmr-tx`
-- `grin-handlers.ts` - `@/lib/grin`
+- `grin/helpers.ts` - `@/lib/grin`
+- `grin/init.ts` - `@/lib/grin`
+- `grin/receive.ts` - `@/lib/grin`
+- `grin/send.ts` - `@/lib/grin`
+- `grin/invoice.ts` - `@/lib/grin`
 - `state.ts` - `@/lib/grin` (session restore only)

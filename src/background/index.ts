@@ -113,7 +113,7 @@ import {
   handleGrinCreateInvoice,
   handleGrinSignInvoice,
   handleGrinFinalizeInvoice,
-} from './grin-handlers';
+} from './grin';
 
 // Tips operations
 import {

@@ -32,10 +32,6 @@ Manual installation for when store versions are pending review.
 2. Go to `about:addons`, click gear icon, then **Install Add-on From File...**
 3. Select the `.zip` file directly
 
-## Safari
-
-Not yet supported. 
-
 ⚠️ **Alpha Release** - Use with small amounts while testing.
 
 ## Safari

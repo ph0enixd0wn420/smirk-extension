@@ -28,7 +28,12 @@ src/
 │   ├── balance.ts      # Balance queries for all assets
 │   ├── send.ts         # BTC/LTC transaction building
 │   ├── grin-handlers.ts # Grin WASM operations
-│   └── tips.ts         # Tip decryption and claiming
+│   ├── tips.ts         # Tip decryption and claiming
+│   └── social/         # Social tipping (modular)
+│       ├── create.ts       # Tip creation
+│       ├── claim.ts        # Tip claiming
+│       ├── clawback.ts     # Tip recovery
+│       └── sweep.ts        # Unified sweep logic
 ├── content/        # Content script - injects window.smirk
 ├── inject/         # Injected script - window.smirk API implementation
 ├── popup/          # Main UI (Preact components)

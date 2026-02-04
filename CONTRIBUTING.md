@@ -31,7 +31,7 @@ const { initGrinWallet } = await import('@/lib/grin');
 
 Any file in `src/background/` that gets bundled into `background.js`:
 - `src/background/index.ts`
-- `src/background/social.ts`
+- `src/background/social/*.ts`
 - `src/background/grin-handlers.ts`
 - `src/background/state.ts`
 - `src/background/wallet.ts`
@@ -80,14 +80,33 @@ npm run build:chrome
 
 ## Code Organization
 
-### Background Script Size
+### Background Script Structure
 
-`social.ts` is currently ~2000 lines. Consider splitting large handlers into separate files:
+Social tipping is split into focused modules in `src/background/social/`:
 
-- `src/background/tips/` - Tip creation, claiming, cancellation
-- `src/background/webhooks/` - Webhook registration and processing
-- `src/background/vouchers/` - Voucher operations
+```
+social/
+├── index.ts      # Re-exports all handlers
+├── types.ts      # Shared interfaces
+├── crypto.ts     # Key derivation helpers (no WASM)
+├── lookup.ts     # User lookup handlers
+├── retrieve.ts   # Tip listing handlers
+├── create.ts     # Tip creation (WASM: grin, xmr-tx)
+├── claim.ts      # Tip claiming (WASM: grin)
+├── clawback.ts   # Tip recovery (WASM: grin)
+└── sweep.ts      # Unified sweep logic (WASM: xmr-tx)
+```
+
+Files with WASM dependencies are clearly marked. All WASM imports are dynamic.
 
 ### WASM Operations
 
 All WASM-dependent code should use dynamic imports. The popup can use static imports since it runs in a normal extension page context with DOM access.
+
+Files with dynamic WASM imports:
+- `social/create.ts` - `@/lib/xmr-tx`, `@/lib/grin`
+- `social/claim.ts` - `@/lib/grin`
+- `social/clawback.ts` - `@/lib/grin`
+- `social/sweep.ts` - `@/lib/xmr-tx`
+- `grin-handlers.ts` - `@/lib/grin`
+- `state.ts` - `@/lib/grin` (session restore only)

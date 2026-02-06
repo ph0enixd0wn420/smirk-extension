@@ -186,7 +186,7 @@ export interface SocialMethods {
 export function createSocialMethods(client: ApiClient): SocialMethods {
   return {
     async lookupSocial(platform: string, username: string) {
-      return client.request<SocialLookupResponse>(
+      return client.retryableRequest<SocialLookupResponse>(
         `/socials/lookup?platform=${encodeURIComponent(platform)}&username=${encodeURIComponent(username)}`,
         { method: 'GET' }
       );
@@ -195,13 +195,14 @@ export function createSocialMethods(client: ApiClient): SocialMethods {
     async lookupSmirkName(username: string) {
       // Strip leading @ if present
       const cleanUsername = username.startsWith('@') ? username.slice(1) : username;
-      return client.request<SocialLookupResponse>(
+      return client.retryableRequest<SocialLookupResponse>(
         `/users/by-username/${encodeURIComponent(cleanUsername)}`,
         { method: 'GET' }
       );
     },
 
     async createSocialTip(request: CreateSocialTipRequest) {
+      // No retry on POST - could create duplicate tips
       return client.request<CreateSocialTipResponse>('/tips/social', {
         method: 'POST',
         body: JSON.stringify(request),
@@ -209,24 +210,25 @@ export function createSocialMethods(client: ApiClient): SocialMethods {
     },
 
     async getClaimableTips() {
-      return client.request<{ tips: ClaimableTip[] }>('/tips/social/claimable', {
+      return client.retryableRequest<{ tips: ClaimableTip[] }>('/tips/social/claimable', {
         method: 'GET',
       });
     },
 
     async getReceivedTips() {
-      return client.request<{ tips: ReceivedTip[] }>('/tips/social/received', {
+      return client.retryableRequest<{ tips: ReceivedTip[] }>('/tips/social/received', {
         method: 'GET',
       });
     },
 
     async getSentSocialTips() {
-      return client.request<{ tips: SentTip[] }>('/tips/social/sent', {
+      return client.retryableRequest<{ tips: SentTip[] }>('/tips/social/sent', {
         method: 'GET',
       });
     },
 
     async claimSocialTip(tipId: string) {
+      // No retry - claim is not idempotent
       return client.request<{ success: boolean; encrypted_key: string | null; tip_address: string | null }>(
         `/tips/social/${tipId}/claim`,
         { method: 'POST' }
@@ -241,7 +243,8 @@ export function createSocialMethods(client: ApiClient): SocialMethods {
     },
 
     async confirmTipSweep(tipId: string, sweepTxid: string) {
-      return client.request<{ success: boolean }>(
+      // Retry OK - confirm-sweep is idempotent
+      return client.retryableRequest<{ success: boolean }>(
         `/tips/social/${tipId}/confirm-sweep`,
         {
           method: 'POST',
@@ -251,8 +254,7 @@ export function createSocialMethods(client: ApiClient): SocialMethods {
     },
 
     async getPublicSocialTip(tipId: string) {
-      // Public endpoint - works with or without auth
-      return client.request<PublicTipInfo>(
+      return client.retryableRequest<PublicTipInfo>(
         `/tips/social/${tipId}/public`,
         { method: 'GET' }
       );

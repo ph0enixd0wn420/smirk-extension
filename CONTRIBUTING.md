@@ -133,6 +133,66 @@ grin/
 └── cancel.ts         # Cancel operations
 ```
 
+### API Client Structure
+
+The backend API client lives in `src/lib/api/`:
+
+```
+api/
+├── client.ts         # Base HTTP client, retry, timeout
+├── parse.ts          # Response validation helpers, snake→camel
+├── auth.ts           # Authentication (register, refresh, check-restore)
+├── social.ts         # Social tipping (lookup, create, claim, clawback)
+├── grin.ts           # Grin wallet (relay, outputs, transactions)
+├── wallet-lws.ts     # XMR/WOW light wallet
+├── wallet-utxo.ts    # BTC/LTC UTXO operations
+├── keys.ts           # Public key registration
+├── tips.ts           # Link-based tips
+└── index.ts          # SmirkApi - combines all methods
+```
+
+#### Request Patterns
+
+- **`request<T>()`** - Single attempt. Use for non-idempotent mutations (tip creation, claims, clawback).
+- **`retryableRequest<T>()`** - Up to 3 attempts with exponential backoff (500ms, 1s, 2s). Only retries on 5xx and network errors, never on 4xx. Use for GETs and idempotent POSTs.
+- All requests have a 30s timeout via AbortController.
+
+```typescript
+// Safe to retry (GET, idempotent)
+return client.retryableRequest<Data>('/tips/social/sent', { method: 'GET' });
+
+// NOT safe to retry (creates state)
+return client.request<Data>('/tips/social', { method: 'POST', body: ... });
+```
+
+#### Response Parsing
+
+`ApiResponse<T>` includes `status` (HTTP code) and `code` (machine-readable error code from backend):
+
+```typescript
+const result = await api.claimSocialTip(tipId);
+if (result.error) {
+  if (result.code === 'NOT_FOUND') { /* tip doesn't exist */ }
+  if (result.status === 401) { /* token expired, re-auth */ }
+}
+```
+
+Use `parse.ts` helpers for safe field extraction from unknown API responses:
+
+```typescript
+import { str, num, boolOr, snakeToCamel } from './parse';
+
+// Safe - returns undefined if missing or wrong type
+const name = str(response, 'username');
+const amount = num(response, 'amount');
+
+// With fallback - never returns undefined
+const isPublic = boolOr(response, 'is_public', false);
+
+// Transform entire response from snake_case to camelCase
+const data = snakeToCamel<MyType>(response);
+```
+
 ### WASM Operations
 
 All WASM-dependent code should use dynamic imports. The popup can use static imports since it runs in a normal extension page context with DOM access.

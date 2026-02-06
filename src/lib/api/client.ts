@@ -23,7 +23,15 @@ function setGlobalToken(token: string | null): void {
 export interface ApiResponse<T> {
   data?: T;
   error?: string;
+  /** HTTP status code (when available). Useful for detecting 401, 429, etc. */
+  status?: number;
+  /** Machine-readable error code from backend (e.g., 'AUTH_TOKEN_EXPIRED') */
+  code?: string;
 }
+
+const DEFAULT_TIMEOUT_MS = 30_000;
+const MAX_RETRIES = 3;
+const RETRY_BASE_MS = 500;
 
 /**
  * Base API client class with authentication support.
@@ -68,29 +76,72 @@ export class ApiClient {
     }
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+
       const response = await fetch(url, {
         ...options,
         headers,
+        signal: controller.signal,
       });
 
+      clearTimeout(timeoutId);
+
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+        const body = await response.json().catch(() => ({ error: 'Unknown error' }));
         if (shouldLog) {
-          console.error(`[API] ${method} ${url} FAILED:`, response.status, error);
+          console.error(`[API] ${method} ${url} FAILED:`, response.status, body);
         }
-        return { error: error.error || `HTTP ${response.status}` };
+        return {
+          error: body.error || `HTTP ${response.status}`,
+          status: response.status,
+          code: body.code,
+        };
       }
 
       const data = await response.json();
       if (shouldLog) {
         console.log(`[API] ${method} ${url} OK:`, data);
       }
-      return { data };
+      return { data, status: response.status };
     } catch (err) {
       if (shouldLog) {
         console.error(`[API] ${method} ${url} EXCEPTION:`, err);
       }
-      return { error: err instanceof Error ? err.message : 'Network error' };
+      const message = err instanceof Error
+        ? (err.name === 'AbortError' ? 'Request timed out' : err.message)
+        : 'Network error';
+      return { error: message };
     }
+  }
+
+  /**
+   * Makes a request with automatic retry on 5xx errors and network failures.
+   * Does NOT retry on 4xx (client errors) - those need caller intervention.
+   */
+  async retryableRequest<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<ApiResponse<T>> {
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      const result = await this.request<T>(endpoint, options);
+
+      // Success or client error (4xx) - don't retry
+      if (result.data || (result.status && result.status < 500)) {
+        return result;
+      }
+
+      // Last attempt - return whatever we got
+      if (attempt === MAX_RETRIES - 1) {
+        return result;
+      }
+
+      // Exponential backoff: 500ms, 1000ms, 2000ms
+      const delay = RETRY_BASE_MS * Math.pow(2, attempt);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+
+    // Should never reach here, but TypeScript needs it
+    return { error: 'Max retries exceeded' };
   }
 }

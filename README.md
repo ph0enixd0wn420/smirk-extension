@@ -48,7 +48,14 @@ src/
 │   ├── xmr-tx.ts        # XMR/WOW transaction signing via WASM
 │   ├── btc-tx.ts        # BTC/LTC transaction signing
 │   ├── grin/            # Grin wallet (client-side WASM)
-│   └── api.ts           # Backend API client
+│   └── api/             # Backend API client (modular)
+│       ├── client.ts        # Base HTTP client, retry, timeout
+│       ├── parse.ts         # Response validation, snake→camel
+│       ├── auth.ts          # Authentication methods
+│       ├── social.ts        # Social tipping methods
+│       ├── grin.ts          # Grin wallet methods
+│       ├── wallet-lws.ts    # XMR/WOW light wallet methods
+│       └── index.ts         # Combined API client
 └── types/          # TypeScript types
 ```
 

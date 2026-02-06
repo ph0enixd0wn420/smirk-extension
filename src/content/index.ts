@@ -11,15 +11,13 @@
  */
 
 // Inline browser API (content scripts can't import from chunks)
-// Firefox uses window.browser, Chrome uses window.chrome
-// Use type assertions to avoid TypeScript conflicts
-const browserWindow = window as typeof window & {
-  browser?: typeof chrome;
-  chrome?: typeof chrome;
-};
+// In Firefox content scripts, `browser` is injected into the content script's scope
+// but NOT onto `window` (which refers to the page window via Xray wrappers).
+// Use direct global access to find the API correctly in both browsers.
+declare const browser: typeof chrome | undefined;
 
-const isFirefox = typeof browserWindow.browser !== 'undefined';
-const browserAPI = (isFirefox ? browserWindow.browser : browserWindow.chrome) as typeof chrome;
+const isFirefox = typeof browser !== 'undefined';
+const browserAPI = (isFirefox ? browser! : chrome) as typeof chrome;
 
 const runtime = {
   sendMessage<T = unknown>(message: unknown): Promise<T> {

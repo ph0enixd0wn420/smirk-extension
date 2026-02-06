@@ -3,6 +3,7 @@
  */
 
 import { ApiClient, ApiResponse } from './client';
+import { snakeToCamel } from './parse';
 
 export interface AuthMethods {
   telegramLogin(initData: string): Promise<ApiResponse<{
@@ -57,82 +58,56 @@ export interface AuthMethods {
   }>>;
 }
 
-// Transform snake_case auth response to camelCase
-interface RawAuthResponse {
-  access_token: string;
-  refresh_token: string;
-  expires_in: number;
+// Auth responses come as snake_case from backend - transform with snakeToCamel
+interface AuthResponseCamel {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
   user: {
     id: string;
-    telegram_id?: number;
-    telegram_username?: string;
+    telegramId?: number;
+    telegramUsername?: string;
     username?: string;
-    is_new?: boolean;
+    isNew?: boolean;
   };
 }
 
-function transformAuthResponse(raw: RawAuthResponse) {
-  return {
-    accessToken: raw.access_token,
-    refreshToken: raw.refresh_token,
-    expiresIn: raw.expires_in,
-    user: {
-      id: raw.user.id,
-      telegramId: raw.user.telegram_id,
-      telegramUsername: raw.user.telegram_username,
-      username: raw.user.username,
-      isNew: raw.user.is_new,
-    },
-  };
-}
-
-// Transform snake_case check-restore response to camelCase
-interface RawCheckRestoreResponse {
+interface CheckRestoreResponseCamel {
   exists: boolean;
-  user_id?: string;
-  keys_valid?: boolean;
+  userId?: string;
+  keysValid?: boolean;
   error?: string;
-  xmr_start_height?: number;
-  wow_start_height?: number;
-}
-
-function transformCheckRestoreResponse(raw: RawCheckRestoreResponse) {
-  return {
-    exists: raw.exists,
-    userId: raw.user_id,
-    keysValid: raw.keys_valid,
-    error: raw.error,
-    xmrStartHeight: raw.xmr_start_height,
-    wowStartHeight: raw.wow_start_height,
-  };
+  xmrStartHeight?: number;
+  wowStartHeight?: number;
 }
 
 export function createAuthMethods(client: ApiClient): AuthMethods {
   return {
     async telegramLogin(initData: string) {
-      const result = await client.request<RawAuthResponse>('/auth/telegram', {
+      const result = await client.request<Record<string, unknown>>('/auth/telegram', {
         method: 'POST',
         body: JSON.stringify({ init_data: initData }),
       });
       if (result.data) {
-        return { data: transformAuthResponse(result.data) };
+        return { data: snakeToCamel<AuthResponseCamel>(result.data) };
       }
-      return { error: result.error };
+      return { error: result.error, status: result.status, code: result.code };
     },
 
     async refreshToken(refreshToken: string) {
-      const result = await client.request<RawAuthResponse>('/auth/refresh', {
+      // Retry OK - refresh is idempotent (returns same token if not expired)
+      const result = await client.retryableRequest<Record<string, unknown>>('/auth/refresh', {
         method: 'POST',
         body: JSON.stringify({ refresh_token: refreshToken }),
       });
       if (result.data) {
-        return { data: transformAuthResponse(result.data) };
+        return { data: snakeToCamel<AuthResponseCamel>(result.data) };
       }
-      return { error: result.error };
+      return { error: result.error, status: result.status, code: result.code };
     },
 
     async extensionRegister(params) {
-      const result = await client.request<RawAuthResponse>('/auth/extension', {
+      const result = await client.request<Record<string, unknown>>('/auth/extension', {
         method: 'POST',
         body: JSON.stringify({
           keys: params.keys.map(k => ({
@@ -150,13 +125,14 @@ export function createAuthMethods(client: ApiClient): AuthMethods {
         }),
       });
       if (result.data) {
-        return { data: transformAuthResponse(result.data) };
+        return { data: snakeToCamel<AuthResponseCamel>(result.data) };
       }
-      return { error: result.error };
+      return { error: result.error, status: result.status, code: result.code };
     },
 
     async checkRestore(params) {
-      const result = await client.request<RawCheckRestoreResponse>('/auth/check-restore', {
+      // Retry OK - check-restore is a read-only query
+      const result = await client.retryableRequest<Record<string, unknown>>('/auth/check-restore', {
         method: 'POST',
         body: JSON.stringify({
           fingerprint: params.fingerprint,
@@ -168,9 +144,9 @@ export function createAuthMethods(client: ApiClient): AuthMethods {
         }),
       });
       if (result.data) {
-        return { data: transformCheckRestoreResponse(result.data) };
+        return { data: snakeToCamel<CheckRestoreResponseCamel>(result.data) };
       }
-      return { error: result.error };
+      return { error: result.error, status: result.status, code: result.code };
     },
   };
 }

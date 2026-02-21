@@ -4,18 +4,27 @@
  * Shows when a website calls:
  * - window.smirk.connect() - Request to share public keys
  * - window.smirk.signMessage() - Request to sign a message
+ * - window.smirk.requestPayment() - Request to send funds
  */
 
 import { useState, useEffect } from 'preact/hooks';
 import { sendMessage } from '../shared';
 
+interface PaymentDetails {
+  asset: string;
+  amount: string;
+  address: string;
+  memo?: string;
+}
+
 interface PendingApproval {
   id: string;
-  type: 'connect' | 'sign';
+  type: 'connect' | 'sign' | 'payment';
   origin: string;
   siteName: string;
   favicon?: string;
   message?: string;
+  payment?: PaymentDetails;
 }
 
 interface ApprovalViewProps {
@@ -139,6 +148,35 @@ export function ApprovalView({ requestId, onComplete }: ApprovalViewProps) {
             </div>
           </div>
         </div>
+      ) : approval.type === 'payment' && approval.payment ? (
+        <div class="approval-content">
+          <h2 class="approval-title">Payment Request</h2>
+          <p class="approval-description">
+            This site is requesting a payment from your wallet.
+          </p>
+
+          {approval.payment.memo && (
+            <div class="approval-payment-memo">
+              {approval.payment.memo}
+            </div>
+          )}
+
+          <div class="approval-payment-amount">
+            {approval.payment.amount} {approval.payment.asset.toUpperCase()}
+          </div>
+
+          <div class="approval-payment-details">
+            <div class="approval-payment-label">To address:</div>
+            <div class="approval-payment-address" title={approval.payment.address}>
+              {approval.payment.address}
+            </div>
+          </div>
+
+          <div class="approval-warning">
+            This will send funds from your wallet. This action cannot be undone.
+            Verify the amount and address carefully.
+          </div>
+        </div>
       ) : (
         <div class="approval-content">
           <h2 class="approval-title">Signature Request</h2>
@@ -178,6 +216,8 @@ export function ApprovalView({ requestId, onComplete }: ApprovalViewProps) {
             <span class="spinner" style={{ width: '16px', height: '16px' }} />
           ) : approval.type === 'connect' ? (
             'Connect'
+          ) : approval.type === 'payment' && approval.payment ? (
+            `Send ${approval.payment.amount} ${approval.payment.asset.toUpperCase()}`
           ) : (
             'Sign'
           )}

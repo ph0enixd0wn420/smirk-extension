@@ -34,6 +34,18 @@ export interface SmirkSignResult {
   signatures: SmirkSignature[];
 }
 
+export interface SmirkPaymentRequest {
+  asset: 'btc' | 'ltc' | 'xmr' | 'wow';
+  amount: string;    // Human-readable amount (e.g., "1.0", "9.0")
+  address: string;   // Recipient address
+  memo?: string;     // Optional description (e.g., "Direct mode entry fee")
+}
+
+export interface SmirkPaymentResult {
+  txid: string;
+  amount: string;    // Actual amount sent (may differ slightly due to fees)
+}
+
 interface PendingRequest {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
@@ -159,6 +171,33 @@ const smirk = {
    */
   async getAddresses(): Promise<SmirkAddresses | null> {
     return sendRequest<SmirkAddresses | null>('getAddresses');
+  },
+
+  /**
+   * Request a payment from the user's wallet.
+   * Opens an approval popup showing the payment details.
+   * Requires prior connection (connect() must have been called).
+   * Grin is not supported (requires interactive slatepack exchange).
+   */
+  async requestPayment(request: SmirkPaymentRequest): Promise<SmirkPaymentResult> {
+    if (!request || typeof request !== 'object') {
+      throw new Error('Payment request must be an object');
+    }
+    const { asset, amount, address } = request;
+    const validAssets = ['btc', 'ltc', 'xmr', 'wow'];
+    if (!validAssets.includes(asset)) {
+      throw new Error(`Invalid asset: ${asset}. Must be one of: ${validAssets.join(', ')}`);
+    }
+    if (typeof amount !== 'string' || amount.length === 0) {
+      throw new Error('Amount must be a non-empty string');
+    }
+    if (isNaN(Number(amount)) || Number(amount) <= 0) {
+      throw new Error('Amount must be a positive number');
+    }
+    if (typeof address !== 'string' || address.length === 0) {
+      throw new Error('Address must be a non-empty string');
+    }
+    return sendRequest<SmirkPaymentResult>('requestPayment', request);
   },
 
   /**

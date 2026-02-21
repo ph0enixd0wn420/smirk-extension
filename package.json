@@ -3,6 +3,9 @@
   "version": "0.1.6",
   "description": "Non-custodial multi-currency tip wallet browser extension",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "vite build --watch",
     "build": "vite build",

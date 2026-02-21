@@ -4,15 +4,22 @@ Add "Sign in with Smirk" to your website. Users authenticate by cryptographicall
 
 ## Overview
 
-Smirk provides a `window.smirk` API that any website can use for authentication. The flow works like MetaMask's `window.ethereum`:
+Smirk provides a `window.smirk` API that any website can use for authentication and payments. The flow works like MetaMask's `window.ethereum`:
 
+**Authentication:**
 1. Website requests connection to Smirk wallet
 2. User approves in extension popup
 3. Website receives user's public keys
 4. Website requests signature on a challenge message
 5. Backend verifies signature, issues session token
 
-**Key benefit:** Users get a consistent identity across all Smirk-integrated sites, tied to their wallet keys.
+**Payments:**
+1. Website calls `requestPayment()` with asset, amount, and address
+2. User sees payment details in approval popup
+3. User approves — extension signs and broadcasts the transaction
+4. Website receives the transaction ID
+
+**Key benefit:** Users get a consistent identity across all Smirk-integrated sites, tied to their wallet keys. Payments require no backend — the extension handles signing and broadcasting.
 
 ## Quick Start
 
@@ -178,6 +185,81 @@ if (addresses) {
   // Wo4cjRpBfdMXQovzJvmoBjjG8Gr7F5ZUTZAu3gFCWpNc2LrxkYtYi1CrXhfYKXWiXKghMDaSYyv1kvgvkJYG1PY527hNiV1wR
 }
 ```
+
+### `window.smirk.requestPayment(request)`
+
+Request a payment from the user's wallet. Opens an approval popup showing the payment details. The user must explicitly approve each payment.
+
+Requires prior connection (`connect()` must have been called). Grin is not supported (requires interactive slatepack exchange).
+
+**No backend changes required** — the transaction is signed and broadcast entirely by the extension. Your website only needs to handle the returned transaction ID.
+
+**Parameters:**
+
+```typescript
+interface PaymentRequest {
+  asset: 'btc' | 'ltc' | 'xmr' | 'wow';  // Asset to send
+  amount: string;    // Human-readable amount (e.g., "1.0", "0.5")
+  address: string;   // Recipient address
+  memo?: string;     // Optional description shown to user
+}
+```
+
+**Returns:** `Promise<PaymentResult>`
+
+```typescript
+interface PaymentResult {
+  txid: string;    // Transaction hash
+  amount: string;  // Actual amount sent (may differ slightly for XMR/WOW due to fees)
+}
+```
+
+**Errors:**
+- `"Site is not connected"` — Call `connect()` first
+- `"User rejected the request"` — User clicked Deny
+- `"Wallet is locked"` — User needs to unlock
+- `"Insufficient funds"` — Not enough balance
+- `"Invalid asset"` — Must be btc, ltc, xmr, or wow
+- `"Amount must be a positive number"` — Invalid amount
+
+**Example:**
+
+```javascript
+async function payWithSmirk(amount, address) {
+  // Check if Smirk is available and connected
+  if (!window.smirk || !await window.smirk.isConnected()) {
+    showManualPaymentModal(amount, address);
+    return;
+  }
+
+  try {
+    const result = await window.smirk.requestPayment({
+      asset: 'wow',
+      amount: String(amount),
+      address: address,
+      memo: 'Game credits purchase',
+    });
+
+    console.log('Payment sent! TX:', result.txid);
+    onPaymentSuccess(result.txid);
+
+  } catch (err) {
+    if (err.message === 'User rejected the request') {
+      // User clicked Deny — don't show an error, just do nothing
+      return;
+    }
+    // Other errors (insufficient funds, network issue, etc.)
+    console.error('Payment failed:', err.message);
+    showManualPaymentModal(amount, address);
+  }
+}
+```
+
+**Security:**
+- Every payment opens an approval popup — no silent transactions
+- The popup shows the amount, asset, recipient address, and requesting site
+- Private keys never leave the extension
+- There is no "trust this site" for payments — every transaction requires a click
 
 ## Backend Verification
 
@@ -431,7 +513,7 @@ window.smirk.on('disconnect', () => {
 ## Live Integrations
 
 - **smirk.cash** - Primary Smirk website, dashboard and settings
-- **play.wownero.ro** - Wownero roguelike game with Smirk wallet login
+- **play.wownero.ro** - Wownero roguelike game with Smirk wallet login and payments
 
 ## Support
 
@@ -440,6 +522,7 @@ window.smirk.on('disconnect', () => {
 
 ## Changelog
 
+- **2026-02-19**: Added `requestPayment()` for one-click payments (BTC, LTC, XMR, WOW)
 - **2026-02-02**: Added `getAddresses()` and documented `getPublicKeys()`
 - **2026-01-30**: Initial integration guide
 - Website auth via challenge-response with ECDSA/Ed25519 signatures

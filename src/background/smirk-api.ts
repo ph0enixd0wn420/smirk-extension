@@ -29,9 +29,12 @@ import { runtime, windows } from '@/lib/browser';
 import {
   isUnlocked,
   unlockedKeys,
+  unlockedViewKeys,
   pendingApprovals,
   incrementApprovalRequestId,
+  addPendingTx,
   type PendingApprovalRequest,
+  type PendingPaymentDetails,
 } from './state';
 import { handleClaimPublicTip } from './social';
 
@@ -86,6 +89,11 @@ export async function handleSmirkApi(
 
     case 'getAddresses':
       return handleSmirkGetAddresses(origin);
+
+    case 'requestPayment': {
+      const { asset, amount, address, memo } = params as { asset: string; amount: string; address: string; memo?: string };
+      return handleSmirkRequestPayment(origin, siteName, favicon, asset, amount, address, memo);
+    }
 
     case 'claimPublicTip': {
       const { tipId, fragmentKey } = params as { tipId: string; fragmentKey: string };
@@ -242,21 +250,23 @@ async function handleSmirkSignMessage(
  *
  * Creates a new browser window with the approval UI and waits for the
  * user to approve or reject. The promise resolves with the appropriate
- * response (public keys for connect, signatures for sign).
+ * response (public keys for connect, signatures for sign, txid for payment).
  *
- * @param type - Request type (connect or sign)
+ * @param type - Request type (connect, sign, or payment)
  * @param origin - Website origin
  * @param siteName - Site name for display
  * @param favicon - Site favicon
  * @param message - Message to sign (for sign requests)
+ * @param payment - Payment details (for payment requests)
  * @returns Promise that resolves with the response
  */
 function openApprovalPopup(
-  type: 'connect' | 'sign',
+  type: 'connect' | 'sign' | 'payment',
   origin: string,
   siteName: string,
   favicon?: string,
-  message?: string
+  message?: string,
+  payment?: PendingPaymentDetails
 ): Promise<MessageResponse> {
   return new Promise((resolve, reject) => {
     const id = `${incrementApprovalRequestId()}`;
@@ -270,6 +280,7 @@ function openApprovalPopup(
       siteName,
       favicon,
       message,
+      payment,
       resolve: resolve as (value: unknown) => void,
       reject,
     });
@@ -277,11 +288,14 @@ function openApprovalPopup(
     // Open approval popup
     const popupUrl = runtime.getURL(`popup.html?mode=approve&requestId=${id}`);
 
+    // Payment popup is taller to show amount, address, memo
+    const popupHeight = type === 'payment' ? 700 : type === 'sign' ? 650 : 600;
+
     windows.create({
       url: popupUrl,
       type: 'popup',
       width: 400,
-      height: type === 'sign' ? 650 : 600, // Taller to fit buttons
+      height: popupHeight,
       focused: true,
     }).then((window) => {
       if (window?.id) {
@@ -369,6 +383,20 @@ export async function handleApprovalResponse(
         error: err instanceof Error ? err.message : 'Signing failed',
       });
     }
+  } else if (pending.type === 'payment') {
+    // Execute the payment
+    try {
+      const result = await executePayment(pending.payment!);
+      pending.resolve({
+        success: true,
+        data: result,
+      });
+    } catch (err) {
+      pending.resolve({
+        success: false,
+        error: err instanceof Error ? err.message : 'Payment failed',
+      });
+    }
   }
 
   return { success: true, data: { handled: true } };
@@ -395,6 +423,7 @@ export async function handleGetPendingApproval(requestId: string): Promise<Messa
       siteName: pending.siteName,
       favicon: pending.favicon,
       message: pending.message,
+      payment: pending.payment,
     },
   };
 }
@@ -755,6 +784,152 @@ async function signMessageWithAllKeys(message: string): Promise<Array<{
   }
 
   return signatures;
+}
+
+// =============================================================================
+// Payment Requests
+// =============================================================================
+
+/**
+ * Handle requestPayment from website.
+ *
+ * Validates parameters and opens approval popup showing payment details.
+ * Requires prior connection.
+ *
+ * @param origin - Website origin
+ * @param siteName - Site name for display
+ * @param favicon - Site favicon
+ * @param asset - Asset to send
+ * @param amount - Human-readable amount
+ * @param address - Recipient address
+ * @param memo - Optional description
+ */
+async function handleSmirkRequestPayment(
+  origin: string,
+  siteName: string,
+  favicon: string | undefined,
+  asset: string,
+  amount: string,
+  address: string,
+  memo?: string
+): Promise<MessageResponse> {
+  // Check if connected
+  const connected = await isOriginConnected(origin);
+  if (!connected) {
+    return { success: false, error: 'Site is not connected. Call connect() first.' };
+  }
+
+  // Validate asset
+  const validAssets = ['btc', 'ltc', 'xmr', 'wow'];
+  if (!validAssets.includes(asset)) {
+    return { success: false, error: `Invalid asset: ${asset}` };
+  }
+
+  // Validate amount
+  const numAmount = Number(amount);
+  if (isNaN(numAmount) || numAmount <= 0) {
+    return { success: false, error: 'Amount must be a positive number' };
+  }
+
+  // Open approval popup with payment details
+  return openApprovalPopup('payment', origin, siteName, favicon, undefined, {
+    asset,
+    amount,
+    address,
+    memo,
+  });
+}
+
+/**
+ * Execute an approved payment.
+ *
+ * Routes to the appropriate send handler based on asset type:
+ * - BTC/LTC: UTXO-based send via handleSendTx
+ * - XMR/WOW: WASM-based send via xmr-tx sendTransaction
+ *
+ * @param payment - Payment details from the approval
+ * @returns Transaction result with txid and amount
+ */
+async function executePayment(
+  payment: PendingPaymentDetails
+): Promise<{ txid: string; amount: string }> {
+  const { asset, amount, address } = payment;
+
+  if (asset === 'btc' || asset === 'ltc') {
+    // Convert human amount to satoshis
+    const satoshis = Math.round(Number(amount) * 1e8);
+
+    const { handleSendTx } = await import('./send');
+
+    // Use a reasonable default fee rate (will be refined in future)
+    const feeRate = asset === 'btc' ? 2 : 1; // sat/vB
+
+    const result = await handleSendTx(asset, address, satoshis, feeRate);
+    if (!result.success) {
+      throw new Error(result.error || 'Transaction failed');
+    }
+
+    // Track pending transaction
+    await addPendingTx({
+      txHash: result.data.txid,
+      asset,
+      amount: result.data.actualAmount,
+      fee: result.data.fee,
+      timestamp: Date.now(),
+    });
+
+    return {
+      txid: result.data.txid,
+      amount: (result.data.actualAmount / 1e8).toString(),
+    };
+  } else if (asset === 'xmr' || asset === 'wow') {
+    // Convert human amount to atomic units
+    const atomicUnits = Math.round(Number(amount) * 1e12);
+
+    const spendKey = unlockedKeys.get(asset);
+    const viewKey = unlockedViewKeys.get(asset);
+    if (!spendKey || !viewKey) {
+      throw new Error(`${asset.toUpperCase()} keys not available`);
+    }
+
+    const state = await getWalletState();
+    const key = state.keys[asset];
+    if (!key) {
+      throw new Error(`No ${asset} key found`);
+    }
+
+    const { getAddressForAsset } = await import('./wallet');
+    const { bytesToHex } = await import('@/lib/crypto');
+    const senderAddress = getAddressForAsset(asset, key);
+    const xmrTx = await import('@/lib/xmr-tx');
+
+    const txResult = await xmrTx.sendTransaction(
+      asset,
+      senderAddress,
+      bytesToHex(viewKey),
+      bytesToHex(spendKey),
+      address,
+      atomicUnits,
+      'mainnet',
+      false
+    );
+
+    // Track pending transaction
+    await addPendingTx({
+      txHash: txResult.txHash,
+      asset,
+      amount: txResult.actualAmount,
+      fee: txResult.fee,
+      timestamp: Date.now(),
+    });
+
+    return {
+      txid: txResult.txHash,
+      amount: (txResult.actualAmount / 1e12).toString(),
+    };
+  }
+
+  throw new Error(`Unsupported asset: ${asset}`);
 }
 
 // =============================================================================

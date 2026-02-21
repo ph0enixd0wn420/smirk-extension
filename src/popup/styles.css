@@ -969,6 +969,47 @@ input[type="checkbox"] {
   padding: 12px;
 }
 
+.approval-payment-memo {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-style: italic;
+}
+
+.approval-payment-amount {
+  font-size: 28px;
+  font-weight: 700;
+  text-align: center;
+  padding: 16px 0;
+  color: var(--color-text);
+}
+
+.approval-payment-details {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.approval-payment-label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-bottom: 6px;
+}
+
+.approval-payment-address {
+  font-size: 12px;
+  font-family: monospace;
+  word-break: break-all;
+  color: var(--color-text);
+  line-height: 1.4;
+}
+
 .approval-actions {
   display: flex;
   gap: 12px;

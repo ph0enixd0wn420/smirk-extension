@@ -9,3 +9,7 @@ releases/
 .env
 .env.local
 .env.*.local
+
+# repo-to-text
+.repo-to-text-settings.yaml
+repo-to-text_*.txt

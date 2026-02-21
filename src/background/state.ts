@@ -61,12 +61,20 @@ export interface PendingTx {
   timestamp: number;
 }
 
+/** Payment details for requestPayment approval */
+export interface PendingPaymentDetails {
+  asset: string;
+  amount: string;
+  address: string;
+  memo?: string;
+}
+
 /** Pending approval request from window.smirk API */
 export interface PendingApprovalRequest {
   /** Unique request ID */
   id: string;
-  /** Request type: connect (for site access) or sign (for message signing) */
-  type: 'connect' | 'sign';
+  /** Request type: connect (for site access), sign (for message signing), or payment (for sending funds) */
+  type: 'connect' | 'sign' | 'payment';
   /** Origin of the requesting website */
   origin: string;
   /** Human-readable site name */
@@ -75,6 +83,8 @@ export interface PendingApprovalRequest {
   favicon?: string;
   /** Message to sign (for sign requests) */
   message?: string;
+  /** Payment details (for payment requests) */
+  payment?: PendingPaymentDetails;
   /** Promise resolver */
   resolve: (value: unknown) => void;
   /** Promise rejecter */

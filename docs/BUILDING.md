@@ -108,6 +108,7 @@ Firefox MV3 has key differences:
 2. Select "On this site" for distribution
 3. Upload `releases/smirk-wallet-firefox-vX.X.X.zip`
 4. **Source code required:** Upload `releases/smirk-wallet-X.X.X-src.zip`
+   - This archive includes `docs/SOURCE_CODE_REVIEW.md` with complete build-from-source instructions for Mozilla reviewers
 5. Fill in listing details
 6. Submit for review
 

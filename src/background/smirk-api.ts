@@ -330,7 +330,8 @@ function openApprovalPopup(
  */
 export async function handleApprovalResponse(
   requestId: string,
-  approved: boolean
+  approved: boolean,
+  txResult?: { txid: string; amount: string }
 ): Promise<MessageResponse> {
   const pending = pendingApprovals.get(requestId);
   if (!pending) {
@@ -385,8 +386,9 @@ export async function handleApprovalResponse(
     }
   } else if (pending.type === 'payment') {
     // Execute the payment
+    // XMR/WOW payments are pre-executed in the popup (service worker can't load WASM)
     try {
-      const result = await executePayment(pending.payment!);
+      const result = txResult ?? await executePayment(pending.payment!);
       pending.resolve({
         success: true,
         data: result,
@@ -882,54 +884,12 @@ async function executePayment(
       txid: result.data.txid,
       amount: (result.data.actualAmount / 1e8).toString(),
     };
-  } else if (asset === 'xmr' || asset === 'wow') {
-    // Convert human amount to atomic units
-    const atomicUnits = Math.round(Number(amount) * 1e12);
-
-    const spendKey = unlockedKeys.get(asset);
-    const viewKey = unlockedViewKeys.get(asset);
-    if (!spendKey || !viewKey) {
-      throw new Error(`${asset.toUpperCase()} keys not available`);
-    }
-
-    const state = await getWalletState();
-    const key = state.keys[asset];
-    if (!key) {
-      throw new Error(`No ${asset} key found`);
-    }
-
-    const { getAddressForAsset } = await import('./wallet');
-    const { bytesToHex } = await import('@/lib/crypto');
-    const senderAddress = getAddressForAsset(asset, key);
-    const xmrTx = await import('@/lib/xmr-tx');
-
-    const txResult = await xmrTx.sendTransaction(
-      asset,
-      senderAddress,
-      bytesToHex(viewKey),
-      bytesToHex(spendKey),
-      address,
-      atomicUnits,
-      'mainnet',
-      false
-    );
-
-    // Track pending transaction
-    await addPendingTx({
-      txHash: txResult.txHash,
-      asset,
-      amount: txResult.actualAmount,
-      fee: txResult.fee,
-      timestamp: Date.now(),
-    });
-
-    return {
-      txid: txResult.txHash,
-      amount: (txResult.actualAmount / 1e12).toString(),
-    };
   }
 
-  throw new Error(`Unsupported asset: ${asset}`);
+  // XMR/WOW payments are handled in the popup context (service worker cannot
+  // dynamically import WASM modules). The popup executes the send and passes
+  // txResult via handleApprovalResponse. If we reach here, something is wrong.
+  throw new Error(`Unsupported asset for service worker execution: ${asset}. XMR/WOW must be executed in popup context.`);
 }
 
 // =============================================================================

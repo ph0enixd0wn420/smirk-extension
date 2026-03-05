@@ -1,67 +1,40 @@
 # Contributing to Smirk Wallet Extension
 
-## Critical: Service Worker Restrictions
+## Critical: Service Worker Import Rules
 
-Chrome MV3 extensions run background scripts as **service workers**, which have no DOM access. This causes issues with WASM modules that use DOM APIs internally.
+Chrome MV3 extensions run background scripts as **service workers**. Chrome blocks `import()` (dynamic imports) on `ServiceWorkerGlobalScope` per the HTML spec. Vite splits dynamically-imported modules into separate chunks, and `import()` to load those chunks will crash.
 
 ### The Rule
 
-**Never static-import WASM modules in background scripts.**
+**Always use static imports in background scripts. Never use dynamic `import()`.**
 
 ```typescript
-// BAD - crashes Chrome service worker at startup
-import { initGrinWallet } from '@/lib/grin';
+// GOOD - static import (bundled at build time, no runtime import())
+import * as grinModule from '@/lib/grin';
 import { sendTransaction } from '@/lib/xmr-tx';
 
 // GOOD - type imports are fine (stripped at compile time)
 import type { GrinKeys } from '@/lib/grin';
 
-// GOOD - dynamic import loads on-demand
+// BAD - dynamic import crashes in Chrome MV3 service workers
 const { initGrinWallet } = await import('@/lib/grin');
 ```
 
 ### Why This Matters
 
-1. WASM modules (`@/lib/grin`, `@/lib/xmr-tx`) use `document.createElement` during initialization
-2. Chrome service workers don't have `document` - it's `undefined`
-3. Static imports load at service worker startup = immediate crash
-4. Firefox uses `background.scripts` (not service worker) so it still works, hiding the bug
-
-### Affected Files
-
-Any file in `src/background/` that gets bundled into `background.js`:
-- `src/background/index.ts`
-- `src/background/social/*.ts`
-- `src/background/grin/*.ts`
-- `src/background/wallet/*.ts`
-- `src/background/state.ts`
-- etc.
+1. Chrome blocks `import()` on `ServiceWorkerGlobalScope` per the HTML spec
+2. Vite creates separate chunks for dynamically-imported modules
+3. `import()` to load those chunks fails in the service worker
+4. The WASM modules (`@/lib/grin`, `@/lib/xmr-tx`) are service-worker-compatible (they use `fetch()` + `WebAssembly.compile()` + `initSync()`, NOT DOM APIs), so static imports work fine
 
 ### How to Check
 
-Run this before committing changes to background scripts:
+After building, verify no `import()` calls exist in the background bundle:
 
 ```bash
-# Should only show "import type" statements, not function imports
-grep -r "from '@/lib/grin'" src/background/ | grep -v "import type"
-grep -r "from '@/lib/xmr-tx'" src/background/ | grep -v "import type"
-```
-
-If either command shows results, you have a static import that needs to be converted to dynamic.
-
-### Pattern for Dynamic Imports
-
-```typescript
-// At module level - helper function
-async function getGrinModule() {
-  return import('@/lib/grin');
-}
-
-// In async functions - use the helper
-async function handleGrinOperation() {
-  const { initGrinWallet, signSlate } = await getGrinModule();
-  // ... use the functions
-}
+npm run build:chrome
+grep -oP 'import\([^)]+\)' dist/background.js
+# Should output NOTHING
 ```
 
 ---
@@ -73,7 +46,7 @@ Always test Chrome builds after modifying background script imports:
 ```bash
 npm run build:chrome
 # Load dist/ as unpacked extension in chrome://extensions
-# Check for "Service worker registration failed" errors
+# Check for "Service worker registration failed" or "import() is disallowed" errors
 ```
 
 ---
@@ -94,14 +67,10 @@ social/
 ├── create.ts     # Tip creation (WASM: grin, xmr-tx)
 ├── claim.ts      # Tip claiming (WASM: grin)
 ├── clawback.ts   # Tip recovery (WASM: grin)
-└── sweep.ts      # Unified sweep logic (WASM: xmr-tx)
+└── sweep.ts      # Unified sweep logic (WASM: xmr-tx, grin)
 ```
 
-Files with WASM dependencies are clearly marked. All WASM imports are dynamic.
-
 ### Wallet Module Structure
-
-Wallet operations are split into focused modules in `src/background/wallet/`:
 
 ```
 wallet/
@@ -118,12 +87,10 @@ wallet/
 
 ### Grin Module Structure
 
-Grin WASM operations are split into focused modules in `src/background/grin/`:
-
 ```
 grin/
 ├── index.ts          # Re-exports all handlers
-├── helpers.ts        # WASM loading, key init, auth helpers
+├── helpers.ts        # WASM module access, key init, auth helpers
 ├── backend.ts        # API wrappers (record, lock, spend, broadcast)
 ├── init.ts           # Wallet initialization
 ├── relay.ts          # Pending slatepacks polling
@@ -192,19 +159,3 @@ const isPublic = boolOr(response, 'is_public', false);
 // Transform entire response from snake_case to camelCase
 const data = snakeToCamel<MyType>(response);
 ```
-
-### WASM Operations
-
-All WASM-dependent code should use dynamic imports. The popup can use static imports since it runs in a normal extension page context with DOM access.
-
-Files with dynamic WASM imports:
-- `social/create.ts` - `@/lib/xmr-tx`, `@/lib/grin`
-- `social/claim.ts` - `@/lib/grin`
-- `social/clawback.ts` - `@/lib/grin`
-- `social/sweep.ts` - `@/lib/xmr-tx`
-- `grin/helpers.ts` - `@/lib/grin`
-- `grin/init.ts` - `@/lib/grin`
-- `grin/receive.ts` - `@/lib/grin`
-- `grin/send.ts` - `@/lib/grin`
-- `grin/invoice.ts` - `@/lib/grin`
-- `state.ts` - `@/lib/grin` (session restore only)

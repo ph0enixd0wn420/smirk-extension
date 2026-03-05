@@ -37,8 +37,12 @@ import {
   type PendingPaymentDetails,
 } from './state';
 import { handleClaimPublicTip } from './social';
+// Static imports — import() is blocked in Chrome MV3 service workers
+import { handleGetAddresses, getAddressForAsset } from './wallet';
+import { handleSendTx } from './send';
+import { sendTransaction as sendXmrTransaction, type XmrAsset } from '@/lib/xmr-tx';
+import { bytesToHex } from '@/lib/crypto';
 
-// Static imports for crypto libraries (avoid dynamic imports which trigger modulepreload polyfill in service worker)
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { ed25519 } from '@noble/curves/ed25519';
 import { sha256 } from '@noble/hashes/sha256';
@@ -330,8 +334,7 @@ function openApprovalPopup(
  */
 export async function handleApprovalResponse(
   requestId: string,
-  approved: boolean,
-  txResult?: { txid: string; amount: string }
+  approved: boolean
 ): Promise<MessageResponse> {
   const pending = pendingApprovals.get(requestId);
   if (!pending) {
@@ -386,9 +389,8 @@ export async function handleApprovalResponse(
     }
   } else if (pending.type === 'payment') {
     // Execute the payment
-    // XMR/WOW payments are pre-executed in the popup (service worker can't load WASM)
     try {
-      const result = txResult ?? await executePayment(pending.payment!);
+      const result = await executePayment(pending.payment!);
       pending.resolve({
         success: true,
         data: result,
@@ -487,7 +489,6 @@ async function getPublicKeysResponse(): Promise<MessageResponse> {
  * @returns Addresses for BTC, LTC, XMR, WOW, Grin
  */
 async function getAddressesResponse(): Promise<MessageResponse> {
-  const { handleGetAddresses } = await import('./wallet');
   const result = await handleGetAddresses();
 
   if (!result.success || !result.data) {
@@ -861,8 +862,6 @@ async function executePayment(
     // Convert human amount to satoshis
     const satoshis = Math.round(Number(amount) * 1e8);
 
-    const { handleSendTx } = await import('./send');
-
     // Use a reasonable default fee rate (will be refined in future)
     const feeRate = asset === 'btc' ? 2 : 1; // sat/vB
 
@@ -886,10 +885,53 @@ async function executePayment(
     };
   }
 
-  // XMR/WOW payments are handled in the popup context (service worker cannot
-  // dynamically import WASM modules). The popup executes the send and passes
-  // txResult via handleApprovalResponse. If we reach here, something is wrong.
-  throw new Error(`Unsupported asset for service worker execution: ${asset}. XMR/WOW must be executed in popup context.`);
+  if (asset === 'xmr' || asset === 'wow') {
+    // Convert human amount to atomic units
+    const atomicUnits = Math.round(Number(amount) * 1e12);
+
+    // Get wallet keys from state
+    const senderViewKey = unlockedViewKeys.get(asset);
+    const senderSpendKey = unlockedKeys.get(asset);
+    if (!senderViewKey || !senderSpendKey) {
+      throw new Error(`No ${asset} keys available`);
+    }
+
+    const state = await getWalletState();
+    const senderKey = state.keys[asset];
+    if (!senderKey) {
+      throw new Error(`No ${asset} key found in wallet`);
+    }
+
+    // Get sender address
+    const senderAddress = getAddressForAsset(asset, senderKey);
+
+    const result = await sendXmrTransaction(
+      asset as XmrAsset,
+      senderAddress,
+      bytesToHex(senderViewKey),
+      bytesToHex(senderSpendKey),
+      address,
+      atomicUnits,
+      'mainnet',
+      false
+    );
+
+    // Track pending transaction
+    await addPendingTx({
+      txHash: result.txHash,
+      asset,
+      amount: result.actualAmount,
+      fee: result.fee,
+      timestamp: Date.now(),
+    });
+
+    return {
+      txid: result.txHash,
+      amount: (result.actualAmount / 1e12).toString(),
+    };
+  }
+
+  throw new Error(`Unsupported asset: ${asset}`);
 }
 
 // =============================================================================

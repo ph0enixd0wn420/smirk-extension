@@ -48,6 +48,8 @@ export interface WalletUtxoMethods {
       txid: string;
       height: number;
       fee?: number;
+      total_received?: number;
+      total_sent?: number;
     }>;
   }>>;
 

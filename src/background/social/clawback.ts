@@ -2,15 +2,14 @@
  * Social Tipping Clawback Module
  *
  * Handler for sender to reclaim unclaimed tip funds.
- *
- * WASM MODULES - Dynamic import only!
- * - @/lib/grin (Grin voucher claiming for clawback)
  */
 
 import type { MessageResponse, AssetType } from '@/types';
 import { api } from '@/lib/api';
 import { bytesToHex, hexToBytes, decrypt } from '@/lib/crypto';
 import { sha256 } from '@noble/hashes/sha256';
+// Static import — import() is blocked in Chrome MV3 service workers
+import * as grinModule from '@/lib/grin';
 import { isUnlocked, unlockedKeys, grinWasmKeys, setGrinWasmKeys, unlockedMnemonic } from '../state';
 import {
   getWalletState,
@@ -22,11 +21,6 @@ import { getAddressForAsset } from '../wallet';
 import { deriveViewKeyFromSpendKey } from './crypto';
 import { sweepUtxo, sweepXmrWow } from './sweep';
 import type { GrinVoucherData } from './types';
-
-/** Dynamically import Grin wallet module */
-async function getGrinModule() {
-  return import('@/lib/grin');
-}
 
 /**
  * Clawback a tip (sender reclaims unclaimed funds).
@@ -160,7 +154,6 @@ async function sweepGrinVoucherForClawback(
   console.log(`[Clawback] Grin voucher: commitment=${voucherData.commitment.slice(0, 16)}..., amount=${voucherData.amount}`);
 
   // Ensure Grin WASM wallet is initialized
-  const grinModule = await getGrinModule();
   let keys = grinWasmKeys;
   if (!keys) {
     if (!unlockedMnemonic) {

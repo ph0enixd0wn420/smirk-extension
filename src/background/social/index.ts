@@ -8,13 +8,13 @@
  * - Easier auditing of WASM import locations
  * - Clearer separation of concerns
  *
- * WASM Dependencies (dynamic imports only):
+ * WASM Dependencies (static imports — import() blocked in Chrome MV3 service workers):
  * - create.ts: @/lib/xmr-tx, @/lib/grin
  * - claim.ts: @/lib/grin
  * - clawback.ts: @/lib/grin
- * - sweep.ts: @/lib/xmr-tx
+ * - sweep.ts: @/lib/xmr-tx, @/lib/grin
  *
- * Safe modules (no WASM):
+ * Non-WASM modules:
  * - types.ts, crypto.ts, lookup.ts, retrieve.ts
  */
 

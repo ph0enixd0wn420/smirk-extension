@@ -9,7 +9,6 @@
 
 import { useState, useEffect } from 'preact/hooks';
 import { sendMessage } from '../shared';
-import { sendTransaction as sendXmrTransaction, type XmrAsset } from '@/lib/xmr-tx';
 
 interface PaymentDetails {
   asset: string;
@@ -60,51 +59,10 @@ export function ApprovalView({ requestId, onComplete }: ApprovalViewProps) {
   const handleResponse = async (approved: boolean) => {
     setResponding(true);
     try {
-      let txResult: { txid: string; amount: string } | undefined;
-
-      // XMR/WOW payments must execute in popup context because
-      // the service worker cannot dynamically import WASM modules
-      if (approved && approval?.type === 'payment' && approval.payment) {
-        const { asset, amount, address } = approval.payment;
-        if (asset === 'xmr' || asset === 'wow') {
-          const atomicUnits = Math.round(Number(amount) * 1e12);
-          const walletData = await sendMessage<{
-            address: string;
-            viewKey: string;
-            spendKey: string;
-          }>({ type: 'GET_WALLET_KEYS', asset });
-
-          const result = await sendXmrTransaction(
-            asset as XmrAsset,
-            walletData.address,
-            walletData.viewKey,
-            walletData.spendKey,
-            address,
-            atomicUnits,
-            'mainnet',
-            false
-          );
-
-          await sendMessage({
-            type: 'ADD_PENDING_TX',
-            txHash: result.txHash,
-            asset,
-            amount: result.actualAmount,
-            fee: result.fee,
-          });
-
-          txResult = {
-            txid: result.txHash,
-            amount: (result.actualAmount / 1e12).toString(),
-          };
-        }
-      }
-
       await sendMessage({
         type: 'SMIRK_APPROVAL_RESPONSE',
         requestId,
         approved,
-        txResult,
       });
       onComplete();
     } catch (err) {

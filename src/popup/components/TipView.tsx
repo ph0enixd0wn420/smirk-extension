@@ -298,7 +298,7 @@ export function TipView({
         <div class="content">
           <div style={{ textAlign: 'center', padding: '24px 0' }}>
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>🎁</div>
-            <h2 style={{ marginBottom: '8px' }}>Tip Sent!</h2>
+            <h2 style={{ marginBottom: '8px' }}>Tip Created!</h2>
             <p style={{ color: 'var(--color-text-muted)', fontSize: '13px', marginBottom: '16px' }}>
               {platformConfig?.requiresUsername
                 ? `Your tip to ${platformConfig.formatDisplay(normalizeUsername(username))} has been created`

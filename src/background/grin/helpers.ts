@@ -2,12 +2,15 @@
  * Grin WASM Helpers
  *
  * Shared helper functions for all Grin operations:
- * - WASM module loading (dynamic import)
+ * - WASM module access
  * - Key initialization
  * - Authentication checks
  * - Output fetching
  */
 
+// Static import — import() is blocked in Chrome MV3 service workers.
+// The Grin WASM modules use fetch()+initSync(), not DOM APIs, so static import is safe.
+import * as grinModule from '@/lib/grin';
 import type { GrinKeys, GrinOutput } from '@/lib/grin';
 import { getAuthState } from '@/lib/storage';
 import { api } from '@/lib/api';
@@ -18,19 +21,9 @@ import {
   unlockedMnemonic,
 } from '../state';
 
-// =============================================================================
-// WASM Module Loading
-// =============================================================================
-
-/**
- * Dynamically import Grin WASM module when needed.
- *
- * CRITICAL: This must be a dynamic import because WASM modules use DOM APIs
- * (document.createElement) not available in service workers. Static imports
- * would crash the service worker at startup.
- */
-export async function getGrinModule() {
-  return import('@/lib/grin');
+/** Return Grin module. Callers may `await` this — it's a no-op but harmless. */
+export function getGrinModule() {
+  return grinModule;
 }
 
 // =============================================================================
@@ -61,7 +54,7 @@ export async function ensureGrinKeysInitialized(): Promise<GrinKeys> {
     throw new Error('Mnemonic not available - please re-unlock wallet');
   }
 
-  const keys = await (await getGrinModule()).initGrinWallet(unlockedMnemonic);
+  const keys = await grinModule.initGrinWallet(unlockedMnemonic);
   setGrinWasmKeys(keys);
   return keys;
 }

@@ -209,7 +209,7 @@ export type MessageType =
   // Website API (window.smirk) - from content script
   | { type: 'SMIRK_API'; method: string; params?: unknown; origin: string; siteName: string; favicon?: string }
   // Approval popup responses
-  | { type: 'SMIRK_APPROVAL_RESPONSE'; requestId: string; approved: boolean; txResult?: { txid: string; amount: string } }
+  | { type: 'SMIRK_APPROVAL_RESPONSE'; requestId: string; approved: boolean }
   // Get pending approval request (for approval popup to display)
   | { type: 'GET_PENDING_APPROVAL'; requestId: string }
   // Get connected sites list

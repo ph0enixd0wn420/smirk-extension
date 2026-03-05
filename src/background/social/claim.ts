@@ -3,9 +3,6 @@
  *
  * Handlers for claiming tips (both targeted and public).
  * Uses unified sweep logic from sweep.ts.
- *
- * WASM MODULES - Dynamic import only!
- * - @/lib/grin (Grin voucher claiming)
  */
 
 import type { MessageResponse, AssetType } from '@/types';
@@ -17,17 +14,14 @@ import {
   bytesToHex,
   hexToBytes,
 } from '@/lib/crypto';
+// Static import — import() is blocked in Chrome MV3 service workers
+import * as grinModule from '@/lib/grin';
 import { isUnlocked, unlockedKeys, grinWasmKeys, setGrinWasmKeys, unlockedMnemonic } from '../state';
 import { getWalletState, getAuthState } from '@/lib/storage';
 import { getAddressForAsset } from '../wallet';
 import { deriveViewKeyFromSpendKey } from './crypto';
 import { sweepUtxo, sweepXmrWow, saveFailedSweep } from './sweep';
 import type { GrinVoucherData } from './types';
-
-/** Dynamically import Grin wallet module */
-async function getGrinModule() {
-  return import('@/lib/grin');
-}
 
 /**
  * Claim a social tip by decrypting the key and sweeping funds.
@@ -312,7 +306,6 @@ async function sweepGrinVoucherForClaim(
   console.log(`[ClaimTip] Grin voucher: commitment=${voucherData.commitment.slice(0, 16)}..., amount=${voucherData.amount}`);
 
   // Ensure Grin WASM wallet is initialized
-  const grinModule = await getGrinModule();
   let keys = grinWasmKeys;
   if (!keys) {
     if (!unlockedMnemonic) {

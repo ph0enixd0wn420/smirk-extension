@@ -59,6 +59,8 @@ export function WalletView({ onLock }: { onLock: () => void }) {
   const [pendingTipsCount, setPendingTipsCount] = useState(0);
   // Count of claimable tips (ready to claim)
   const [claimableTipsCount, setClaimableTipsCount] = useState(0);
+  // Count of sent public tips ready to share (confirmed, link available)
+  const [readyToShareCount, setReadyToShareCount] = useState(0);
 
   // =========================================================================
   // Effects
@@ -105,7 +107,7 @@ export function WalletView({ onLock }: { onLock: () => void }) {
     fetchAddresses();
   }, []);
 
-  // Fetch pending tips (received count + sent amounts)
+  // Fetch pending tips (received count + sent ready-to-share count)
   const fetchPendingTips = async () => {
     try {
       // Fetch received tips (for notification badge)
@@ -122,6 +124,15 @@ export function WalletView({ onLock }: { onLock: () => void }) {
         (t) => t.status === 'pending' && t.is_claimable
       ).length;
       setClaimableTipsCount(claimableCount);
+
+      // Fetch sent tips (for "ready to share" notification)
+      const sent = await sendMessage<{ tips: Array<{ status: string; is_public: boolean; is_claimable: boolean }> }>({
+        type: 'GET_SENT_SOCIAL_TIPS',
+      });
+      const readyCount = sent.tips.filter(
+        (t) => t.is_public && t.is_claimable && t.status === 'pending'
+      ).length;
+      setReadyToShareCount(readyCount);
     } catch (err) {
       console.error('Failed to fetch pending tips:', err);
     }
@@ -261,11 +272,15 @@ export function WalletView({ onLock }: { onLock: () => void }) {
   const currentAddress = addresses[activeAsset];
   const currentBalance = balances[activeAsset];
   const currentPendingOutgoing = pendingOutgoing[activeAsset] || 0;
-  // Don't subtract pendingSentTips - once the tip transaction is broadcast,
-  // the blockchain/backend balance already reflects the spent funds.
-  // Subtracting again would cause double-counting (user sees 0 balance).
-  // Deduct only pending txs (local sends not yet seen by backend)
-  const adjustedConfirmed = Math.max(0, (currentBalance?.confirmed ?? 0) - currentPendingOutgoing);
+  // For XMR/WOW: if locked_balance > 0, LWS has already detected our spend
+  // (change output is locked). Don't also subtract pendingOutgoing or we double-count.
+  const lwsDetectedSpend = (activeAsset === 'xmr' || activeAsset === 'wow')
+    && currentBalance && (currentBalance.locked ?? 0) > 0;
+  // Clear pendingOutgoing display when LWS has taken over tracking
+  const displayPendingOutgoing = lwsDetectedSpend ? 0 : currentPendingOutgoing;
+  const adjustedConfirmed = lwsDetectedSpend
+    ? (currentBalance?.confirmed ?? 0)
+    : Math.max(0, (currentBalance?.confirmed ?? 0) - currentPendingOutgoing);
 
   // =========================================================================
   // Sub-screens
@@ -401,7 +416,7 @@ export function WalletView({ onLock }: { onLock: () => void }) {
           asset={activeAsset}
           balance={currentBalance}
           adjustedConfirmed={adjustedConfirmed}
-          pendingOutgoing={currentPendingOutgoing}
+          pendingOutgoing={displayPendingOutgoing}
           loading={loadingBalance === activeAsset}
           onRefresh={() => fetchBalance(activeAsset)}
         />
@@ -413,6 +428,16 @@ export function WalletView({ onLock }: { onLock: () => void }) {
             setScreen('history');
           }}>
             🎁 You have {claimableTipsCount} tip{claimableTipsCount > 1 ? 's' : ''} ready to claim!
+          </div>
+        )}
+
+        {/* Ready to Share Banner (sent public tips with enough confirmations) */}
+        {readyToShareCount > 0 && (
+          <div class="ready-to-share-banner" onClick={() => {
+            setHistoryInitialTab('sent');
+            setScreen('history');
+          }}>
+            🔗 {readyToShareCount} public tip{readyToShareCount > 1 ? 's' : ''} ready to share!
           </div>
         )}
 
@@ -433,7 +458,7 @@ export function WalletView({ onLock }: { onLock: () => void }) {
           <button class="action-btn" onClick={() => setScreen('history')}>
             <span class="action-icon">
               📜
-              {pendingTipsCount > 0 && <span class="action-badge">{pendingTipsCount}</span>}
+              {(pendingTipsCount > 0 || readyToShareCount > 0) && <span class="action-badge">{pendingTipsCount + readyToShareCount}</span>}
             </span>
             <span class="action-label">History</span>
           </button>

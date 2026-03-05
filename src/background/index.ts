@@ -378,7 +378,7 @@ async function handleMessage(message: MessageType): Promise<MessageResponse> {
       return handleSmirkApi(message.method, message.params, message.origin, message.siteName, message.favicon);
 
     case 'SMIRK_APPROVAL_RESPONSE':
-      return handleApprovalResponse(message.requestId, message.approved, message.txResult);
+      return handleApprovalResponse(message.requestId, message.approved);
 
     case 'GET_PENDING_APPROVAL':
       return handleGetPendingApproval(message.requestId);

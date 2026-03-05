@@ -105,6 +105,14 @@ function cleanupLocalSpentKeyImages(): void {
   }
 }
 
+/**
+ * Check if there are any locally tracked spent key images (recent unconfirmed txs).
+ */
+export function hasLocallySpentKeyImages(): boolean {
+  cleanupLocalSpentKeyImages();
+  return locallySpentKeyImages.size > 0;
+}
+
 export type XmrAsset = 'xmr' | 'wow';
 
 export interface XmrOutput {
@@ -538,13 +546,27 @@ export async function createSignedTransaction(
 
   // 3. Select outputs for this transaction
   console.log(`[xmr-tx] Step 3: Selecting outputs for transaction...`);
-  const { selected, estimatedFee, change, sweepAmount } = await selectOutputs(
-    outputs,
-    amount,
-    per_byte_fee,
-    fee_mask,
-    sweep
-  );
+  let selected: XmrOutput[];
+  let estimatedFee: number;
+  let change: number;
+  let sweepAmount: number | undefined;
+  try {
+    ({ selected, estimatedFee, change, sweepAmount } = await selectOutputs(
+      outputs,
+      amount,
+      per_byte_fee,
+      fee_mask,
+      sweep
+    ));
+  } catch (err) {
+    // Provide better error when insufficient funds due to pending transactions
+    if (err instanceof Error && err.message.includes('Insufficient funds') && hasLocallySpentKeyImages()) {
+      throw new Error(
+        'Not enough confirmed balance. You have a recent transaction still confirming — please wait a few minutes and try again.'
+      );
+    }
+    throw err;
+  }
 
   // In sweep mode, use the calculated sweep amount
   const actualAmount = sweep && sweepAmount ? sweepAmount : amount;

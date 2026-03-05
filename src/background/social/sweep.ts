@@ -3,35 +3,20 @@
  *
  * Unified sweep logic for all asset types. This module consolidates the
  * duplicated sweep code from claim, public claim, clawback, and retry functions.
- *
- * WASM MODULES - Dynamic import only!
- * - @/lib/xmr-tx (XMR/WOW transactions)
- * - @/lib/grin (Grin vouchers)
  */
 
 import type { MessageResponse } from '@/types';
 import { api } from '@/lib/api';
 import { bytesToHex, hexToBytes } from '@/lib/crypto';
 import { createSignedTransaction as createBtcSignedTransaction, type Utxo } from '@/lib/btc-tx';
-import { getAuthState, getPendingSweep, getPendingSweeps, savePendingSweep, removePendingSweep, type PendingSweep } from '@/lib/storage';
+// Static imports — import() is blocked in Chrome MV3 service workers
+import * as xmrTx from '@/lib/xmr-tx';
+import * as grinModule from '@/lib/grin';
+import { getAuthState, getWalletState, getPendingSweep, getPendingSweeps, savePendingSweep, removePendingSweep, type PendingSweep } from '@/lib/storage';
 import { isUnlocked, unlockedKeys, grinWasmKeys, setGrinWasmKeys, unlockedMnemonic } from '../state';
 import { getAddressForAsset } from '../wallet';
 import { deriveViewKeyFromSpendKey } from './crypto';
 import type { GrinVoucherData, SweepResult } from './types';
-
-// =============================================================================
-// Dynamic WASM Module Imports
-// =============================================================================
-
-/** Dynamically import XMR transaction module */
-async function getXmrTx() {
-  return import('@/lib/xmr-tx');
-}
-
-/** Dynamically import Grin wallet module */
-async function getGrinModule() {
-  return import('@/lib/grin');
-}
 
 // =============================================================================
 // UTXO Sweep (BTC/LTC)
@@ -105,7 +90,6 @@ export async function sweepXmrWow(
 
   console.log(`[Sweep] Sweeping ${asset} from ${tipAddress} to ${recipientAddress}`);
 
-  const xmrTx = await getXmrTx();
   const txResult = await xmrTx.sendTransaction(
     asset,
     tipAddress,
@@ -149,7 +133,6 @@ export async function sweepGrinVoucher(
   console.log(`[Sweep] Grin voucher: commitment=${voucherData.commitment.slice(0, 16)}..., amount=${voucherData.amount}`);
 
   // Ensure Grin WASM wallet is initialized
-  const grinModule = await getGrinModule();
   let keys = grinWasmKeys;
   if (!keys) {
     if (!unlockedMnemonic) {
@@ -282,7 +265,6 @@ export async function handleRetrySweep(
     }
 
     // Get recipient address from wallet state
-    const { getWalletState } = await import('@/lib/storage');
     const state = await getWalletState();
     const recipientKey = state.keys[tipAsset];
     if (!recipientKey) {

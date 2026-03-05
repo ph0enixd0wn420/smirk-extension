@@ -2,14 +2,13 @@
  * Social Tipping Create Module
  *
  * Tip creation handler for all asset types.
- *
- * WASM MODULES - Dynamic import only!
- * - @/lib/xmr-tx (XMR/WOW tip address registration)
- * - @/lib/grin (Grin voucher creation)
  */
 
 import type { MessageResponse, AssetType, SocialTipResult } from '@/types';
 import type { GrinOutput } from '@/lib/grin';
+// Static imports — import() is blocked in Chrome MV3 service workers
+import * as xmrTx from '@/lib/xmr-tx';
+import * as grinModule from '@/lib/grin';
 import { api } from '@/lib/api';
 import { sha256 } from '@noble/hashes/sha256';
 import {
@@ -28,23 +27,9 @@ import {
   addPendingSocialTip,
   type PendingSocialTip,
 } from '@/lib/storage';
-import { isUnlocked, unlockedKeys, unlockedViewKeys, grinWasmKeys, setGrinWasmKeys, unlockedMnemonic } from '../state';
+import { isUnlocked, unlockedKeys, unlockedViewKeys, grinWasmKeys, setGrinWasmKeys, unlockedMnemonic, addPendingTx } from '../state';
 import { getAddressForAsset } from '../wallet';
 import { getBtcLtcTipAddress, generateXmrWowTipKeys, retryWithBackoff } from './crypto';
-
-// =============================================================================
-// Dynamic WASM Module Imports
-// =============================================================================
-
-/** Dynamically import XMR transaction module */
-async function getXmrTx() {
-  return import('@/lib/xmr-tx');
-}
-
-/** Dynamically import Grin wallet module */
-async function getGrinModule() {
-  return import('@/lib/grin');
-}
 
 // =============================================================================
 // Tip Creation Handler
@@ -138,6 +123,18 @@ export async function handleCreateSocialTip(
       grinVoucherNChild = result.grinVoucherNChild;
     } else {
       return { success: false, error: `Social tips not supported for ${asset}` };
+    }
+
+    // Track pending outgoing for immediate balance deduction (XMR/WOW only —
+    // Grin records in backend DB, BTC/LTC have 0-conf so less critical)
+    if (asset === 'xmr' || asset === 'wow') {
+      await addPendingTx({
+        txHash: fundingTxid,
+        asset,
+        amount: actualAmount,
+        fee: 0, // Fee already deducted from sender balance by WASM tx builder
+        timestamp: Date.now(),
+      });
     }
 
     // Encrypt tip private key
@@ -319,7 +316,6 @@ async function createXmrWowTip(
   console.log(`[SocialTip] Tip address registered with LWS`);
 
   // Send funds to tip address
-  const xmrTx = await getXmrTx();
   const txResult = await xmrTx.sendTransaction(
     asset,
     senderAddress,
@@ -349,7 +345,6 @@ async function createGrinTip(amount: number): Promise<TipCreationResult> {
     if (!unlockedMnemonic) {
       throw new Error('Grin wallet not initialized - please re-unlock wallet');
     }
-    const grinModule = await getGrinModule();
     keys = await grinModule.initGrinWallet(unlockedMnemonic);
     setGrinWasmKeys(keys);
   }
@@ -395,7 +390,6 @@ async function createGrinTip(amount: number): Promise<TipCreationResult> {
   console.log(`[SocialTip] Creating Grin voucher for ${amount} nanogrin`);
 
   // Create voucher transaction
-  const grinModule = await getGrinModule();
   const voucherResult = await grinModule.createGrinVoucherTransaction(
     keys,
     grinOutputs,

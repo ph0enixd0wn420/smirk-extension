@@ -56,7 +56,6 @@ export function TxList({
   showToast,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
-  const isXmrWow = asset === 'xmr' || asset === 'wow';
   const isGrin = asset === 'grin';
 
   // Loading skeleton
@@ -83,7 +82,6 @@ export function TxList({
             key={tx.txid}
             tx={tx}
             asset={asset}
-            isXmrWow={isXmrWow}
             isGrin={isGrin}
             cancellingTxId={cancellingTxId}
             onCancel={onCancel}
@@ -128,7 +126,6 @@ export function TxList({
 function TxItem({
   tx,
   asset,
-  isXmrWow,
   isGrin,
   cancellingTxId,
   onCancel,
@@ -136,7 +133,6 @@ function TxItem({
 }: {
   tx: TxHistoryEntry;
   asset: AssetType;
-  isXmrWow: boolean;
   isGrin: boolean;
   cancellingTxId: string | null;
   onCancel: (tx: TxHistoryEntry, e: Event) => void;
@@ -144,7 +140,7 @@ function TxItem({
 }) {
   const received = tx.total_received ?? 0;
   const sent = tx.total_sent ?? 0;
-  const isIncoming = (isXmrWow || isGrin) ? received > sent : true;
+  const isIncoming = received > sent;
   // Net amount: for outgoing, subtract change (received) from spent (sent)
   // For incoming, it's just the received amount
   const netAmount = isIncoming ? received : (sent - received);
@@ -203,8 +199,8 @@ function TxItem({
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        {/* Amount for XMR/WOW/Grin - show net amount (spent minus change) */}
-        {(isXmrWow || isGrin) && netAmount > 0 && (
+        {/* Amount - show net amount (spent minus change) */}
+        {netAmount > 0 && (
           <div
             style={{
               fontSize: '11px',

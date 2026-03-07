@@ -142,6 +142,7 @@ export interface GrinMethods {
 
 export function createGrinMethods(client: ApiClient): GrinMethods {
   const request = client['request'].bind(client);
+  const retryableRequest = client['retryableRequest'].bind(client);
 
   return {
     // Slatepack relay
@@ -160,7 +161,7 @@ export function createGrinMethods(client: ApiClient): GrinMethods {
     },
 
     async getGrinPendingSlatepacks(userId) {
-      return request(`/grin/relay/pending/${userId}`, { method: 'GET' });
+      return retryableRequest(`/grin/relay/pending/${userId}`, { method: 'GET' });
     },
 
     async signGrinSlatepack(params) {
@@ -186,7 +187,7 @@ export function createGrinMethods(client: ApiClient): GrinMethods {
     },
 
     async cancelGrinSlatepack(params) {
-      return request('/grin/relay/cancel', {
+      return retryableRequest('/grin/relay/cancel', {
         method: 'POST',
         body: JSON.stringify({
           relay_id: params.relayId,
@@ -197,16 +198,16 @@ export function createGrinMethods(client: ApiClient): GrinMethods {
 
     // User balance and history
     async getGrinUserBalance(userId) {
-      return request(`/wallet/grin/user/${userId}/balance`, { method: 'GET' });
+      return retryableRequest(`/wallet/grin/user/${userId}/balance`, { method: 'GET' });
     },
 
     async getGrinUserHistory(userId) {
-      return request(`/wallet/grin/user/${userId}/history`, { method: 'GET' });
+      return retryableRequest(`/wallet/grin/user/${userId}/history`, { method: 'GET' });
     },
 
     // Output management
     async getGrinOutputs(userId) {
-      return request(`/wallet/grin/user/${userId}/outputs`, { method: 'GET' });
+      return retryableRequest(`/wallet/grin/user/${userId}/outputs`, { method: 'GET' });
     },
 
     async recordGrinOutput(params) {
@@ -237,7 +238,7 @@ export function createGrinMethods(client: ApiClient): GrinMethods {
     },
 
     async unlockGrinOutputs(params) {
-      return request('/wallet/grin/outputs/unlock', {
+      return retryableRequest('/wallet/grin/outputs/unlock', {
         method: 'POST',
         body: JSON.stringify({
           user_id: params.userId,
@@ -247,7 +248,7 @@ export function createGrinMethods(client: ApiClient): GrinMethods {
     },
 
     async spendGrinOutputs(params) {
-      return request('/wallet/grin/outputs/spend', {
+      return retryableRequest('/wallet/grin/outputs/spend', {
         method: 'POST',
         body: JSON.stringify({
           user_id: params.userId,

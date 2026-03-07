@@ -17,10 +17,8 @@ import { unlockGrinOutputs, updateGrinTransactionStatus } from './backend';
 /**
  * Cancel a pending slatepack (relay).
  *
- * Removes the slatepack from the relay system. Used when:
- * - Recipient declines to sign
- * - Transaction times out
- * - User manually cancels
+ * Removes the slatepack from the relay system. The backend automatically
+ * unlocks any locked outputs and cancels the associated transaction.
  *
  * @param relayId - ID of the pending relay slatepack
  * @returns Cancel status

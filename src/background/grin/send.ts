@@ -85,12 +85,21 @@ export async function handleGrinCreateSend(
       recipientAddress
     );
 
-    // Record the transaction FIRST (so lock can reference it)
-    await recordGrinTransaction(userId, result.slate.id, amount, fee, 'send', recipientAddress);
-
-    // Lock the inputs on the backend
-    // This prevents double-spending and links outputs to the transaction
-    await lockGrinOutputs(userId, result.inputIds, result.slate.id);
+    // Record the transaction and lock inputs
+    // If either fails, roll back to prevent orphaned locked outputs
+    try {
+      await recordGrinTransaction(userId, result.slate.id, amount, fee, 'send', recipientAddress);
+      await lockGrinOutputs(userId, result.inputIds, result.slate.id);
+    } catch (backendErr) {
+      console.error('[Grin] Failed to record/lock, rolling back:', backendErr);
+      try {
+        await unlockGrinOutputs(userId, result.slate.id);
+        await updateGrinTransactionStatus(userId, result.slate.id, 'cancelled');
+      } catch (rollbackErr) {
+        console.error('[Grin] Rollback also failed:', rollbackErr);
+      }
+      throw backendErr;
+    }
 
     // Build send context for later finalization
     // Include serialized S1 slate - needed to decode compact S2 response

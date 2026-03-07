@@ -186,3 +186,53 @@ export async function restoreGrinSendState(): Promise<GrinSendFlowState | null> 
 export async function clearGrinSendState(): Promise<void> {
   await storage.session.remove([GRIN_SEND_STATE_KEY]);
 }
+
+// === Grin Signed Invoice State Persistence ===
+// Persists the signed I2 slatepack so user can copy it after popup close
+
+const GRIN_SIGNED_INVOICE_KEY = 'smirk_grin_signed_invoice';
+
+export interface GrinSignedInvoiceState {
+  signedSlatepack: string;
+  slateId: string;
+  amount: number; // nanogrin
+  fee: number;    // nanogrin
+  inputIds: string[];
+  changeOutput?: {
+    keyId: string;
+    nChild: number;
+    amount: number;
+    commitment: string;
+    proof: string;
+  };
+  timestamp: number;
+}
+
+// Save signed invoice state after signing an I1 invoice
+export async function saveGrinSignedInvoice(state: Omit<GrinSignedInvoiceState, 'timestamp'>): Promise<void> {
+  const fullState: GrinSignedInvoiceState = { ...state, timestamp: Date.now() };
+  await storage.session.set({ [GRIN_SIGNED_INVOICE_KEY]: fullState });
+}
+
+// Restore signed invoice state (expires after 30 minutes)
+export async function restoreGrinSignedInvoice(): Promise<GrinSignedInvoiceState | null> {
+  try {
+    const data = await storage.session.get<{ [GRIN_SIGNED_INVOICE_KEY]?: GrinSignedInvoiceState }>([GRIN_SIGNED_INVOICE_KEY]);
+    const state = data[GRIN_SIGNED_INVOICE_KEY];
+    if (!state) return null;
+
+    if (Date.now() - state.timestamp > 30 * 60 * 1000) {
+      await storage.session.remove([GRIN_SIGNED_INVOICE_KEY]);
+      return null;
+    }
+
+    return state;
+  } catch {
+    return null;
+  }
+}
+
+// Clear signed invoice state (after confirmed delivery or cancel)
+export async function clearGrinSignedInvoice(): Promise<void> {
+  await storage.session.remove([GRIN_SIGNED_INVOICE_KEY]);
+}

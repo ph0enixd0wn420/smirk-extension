@@ -613,18 +613,27 @@ class Slate {
 							
 							// Check if purpose is send initial
 							if(purpose === Slate.COMPACT_SLATE_PURPOSE_SEND_INITIAL) {
-							
+
 								// Check if amount isn't zero
 								if(this.getAmount().isZero() === false) {
-								
+
 									// Set that optional fields includes amount
 									optionalFields |= 0b00000010;
 								}
-								
+
 								// Check if fee isn't zero
 								if(this.getFee().isZero() === false) {
-								
+
 									// Set that optional fields includes fee
+									optionalFields |= 0b00000100;
+								}
+							}
+
+							// For send response, also include fee if non-zero
+							// This is needed for RSR (invoice) flow where the sender sets the fee
+							// and the initial slate (I1) has fee=0
+							if(purpose === Slate.COMPACT_SLATE_PURPOSE_SEND_RESPONSE) {
+								if(this.getFee().isZero() === false) {
 									optionalFields |= 0b00000100;
 								}
 							}

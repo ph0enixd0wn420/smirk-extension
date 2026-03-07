@@ -7,7 +7,7 @@ Non-custodial multi-currency wallet for Telegram, Discord, and the web.
 - [GitHub Releases](https://github.com/Such-Software/smirk-extension/releases) - Manual install
 - Chrome Web Store - Coming soon
 
-See [docs/installation.md](docs/installation.md) for installation instructions.
+See [docs/INSTALLATION.md](docs/INSTALLATION.md) for installation instructions.
 
 ## Features
 
@@ -98,7 +98,7 @@ Custom WASM built from Rust:
 | smirk-wasm-monero | [GitHub](https://github.com/Such-Software/smirk-wasm-monero) | Transaction signing, key images |
 | monero-oxide | [GitHub](https://github.com/Such-Software/monero-oxide) | Monero protocol implementation |
 
-All source code is open. See [docs/building.md](docs/building.md) for compilation instructions.
+All source code is open. See [docs/BUILDING.md](docs/BUILDING.md) for compilation instructions.
 
 ## Website Integration (window.smirk API)
 
@@ -121,7 +121,7 @@ if (window.smirk) {
 
 ## Development
 
-See [docs/building.md](docs/building.md) for build instructions and store submission guides.
+See [docs/BUILDING.md](docs/BUILDING.md) for build instructions and store submission guides.
 
 ## Community
 

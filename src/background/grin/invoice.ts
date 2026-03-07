@@ -22,6 +22,7 @@ import {
   recordGrinOutput,
   recordGrinTransaction,
   lockGrinOutputs,
+  unlockGrinOutputs,
   broadcastGrinTransaction,
   updateGrinTransactionStatus,
 } from './backend';
@@ -166,18 +167,30 @@ export async function handleGrinSignInvoice(
 
     console.log(`[Grin Invoice] Signing invoice ${result.slateId} for ${result.amount} nanogrin`);
 
-    // Record the send transaction
-    await recordGrinTransaction(
-      userId,
-      result.slateId,
-      Number(result.amount),
-      Number(result.fee),
-      'send',
-      keys.slatepackAddress // TODO: Get from invoice once we parse it
-    );
+    // Record the send transaction and lock inputs
+    // If either fails, roll back to prevent orphaned locked outputs
+    try {
+      await recordGrinTransaction(
+        userId,
+        result.slateId,
+        Number(result.amount),
+        Number(result.fee),
+        'send',
+        keys.slatepackAddress // TODO: Get from invoice once we parse it
+      );
 
-    // Lock the inputs
-    await lockGrinOutputs(userId, result.inputIds, result.slateId);
+      await lockGrinOutputs(userId, result.inputIds, result.slateId);
+    } catch (backendErr) {
+      console.error('[Grin Invoice] Failed to record/lock, rolling back:', backendErr);
+      // Best-effort rollback — unlock outputs and cancel transaction
+      try {
+        await unlockGrinOutputs(userId, result.slateId);
+        await updateGrinTransactionStatus(userId, result.slateId, 'cancelled');
+      } catch (rollbackErr) {
+        console.error('[Grin Invoice] Rollback also failed:', rollbackErr);
+      }
+      throw backendErr;
+    }
 
     console.log(`[Grin Invoice] Signed invoice, slate ${result.slateId}`);
 

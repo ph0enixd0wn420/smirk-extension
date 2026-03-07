@@ -64,11 +64,14 @@ function setupGetResource(): void {
 
 /**
  * Execute JavaScript source code in the global scope.
- * This is used to load the MWC wallet JS files.
+ * Uses indirect eval() because the MWC wallet JS modules register globals
+ * that must be accessible to each other — no ESM alternative exists for
+ * these legacy scripts. The source is bundled with the extension (not
+ * fetched from network), so the input is trusted.
  */
 function executeScript(source: string, name: string): void {
   try {
-    // Use indirect eval to execute in global scope
+    // Indirect eval executes in global scope (required for MWC globals)
     const indirectEval = eval;
     indirectEval(source);
   } catch (error) {
@@ -104,12 +107,12 @@ function stripJQueryFromCommon(source: string): string {
     }`
   );
 
+  // htmlDecode is never called in our codebase — replace with a no-op stub
+  // that doesn't depend on DOM APIs (safe in service worker context)
   source = source.replace(
     /static htmlDecode\(htmlString\) \{[\s\S]*?return.*\$.*[\s\S]*?\}/,
     `static htmlDecode(htmlString) {
-      const div = document.createElement('div');
-      div.innerHTML = htmlString;
-      return div.textContent || '';
+      return htmlString;
     }`
   );
 

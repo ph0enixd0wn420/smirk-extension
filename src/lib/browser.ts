@@ -61,7 +61,10 @@ export const storage = {
   /**
    * Session storage - persists across service worker restarts but clears on browser close.
    * Useful for keeping unlock state without storing sensitive data permanently.
-   * Note: Firefox doesn't support storage.session, falls back to local storage.
+   *
+   * **Firefox limitation:** Firefox doesn't support storage.session, so session
+   * data (e.g., unlock state) is lost on service worker restart. Users must
+   * re-enter their password. TODO: Consider IndexedDB fallback for Firefox.
    */
   session: {
     async get<T = Record<string, unknown>>(keys: string | string[]): Promise<T> {

@@ -9,6 +9,9 @@ import {
   saveGrinSendState,
   restoreGrinSendState,
   clearGrinSendState,
+  saveGrinSignedInvoice,
+  restoreGrinSignedInvoice,
+  clearGrinSignedInvoice,
   type BalanceData,
 } from '../shared';
 import { useToast, copyToClipboard } from './Toast';
@@ -96,8 +99,17 @@ export function GrinSendView({
     restoreSendState();
   }, []);
 
-  // Restore pending send state from session storage
+  // Restore pending send state or signed invoice from session storage
   const restoreSendState = async () => {
+    // Check for pending signed invoice first
+    const savedInvoice = await restoreGrinSignedInvoice();
+    if (savedInvoice) {
+      console.log('[GrinSendView] Restoring saved signed invoice for slate:', savedInvoice.slateId);
+      setInvoicePayment(savedInvoice);
+      setInvoiceMode(true);
+      return;
+    }
+
     const savedState = await restoreGrinSendState();
     if (savedState) {
       console.log('[GrinSendView] Restoring saved send state for slate:', savedState.sendContext.slateId);
@@ -251,15 +263,20 @@ export function GrinSendView({
         invoiceSlatepack: trimmedInput,
       });
 
-      // Store the context for display
-      setInvoicePayment({
+      const invoiceState = {
         signedSlatepack: result.slatepack,
         amount: result.amount,
         fee: result.fee,
         slateId: result.slateId,
         inputIds: result.inputIds,
         changeOutput: result.changeOutput,
-      });
+      };
+
+      // Store the context for display
+      setInvoicePayment(invoiceState);
+
+      // Persist so it survives popup close
+      await saveGrinSignedInvoice(invoiceState);
 
       // Copy signed response to clipboard
       await copyToClipboard(result.slatepack, showToast, 'Signed slatepack copied');
@@ -271,11 +288,31 @@ export function GrinSendView({
     }
   };
 
-  // Clear invoice payment state
-  const handleClearInvoicePayment = () => {
-    setInvoicePayment(null);
-    setInvoiceInput('');
-    setInvoiceMode(false);
+  // Cancel a signed invoice (unlocks outputs on backend)
+  const handleCancelInvoicePayment = async () => {
+    if (!invoicePayment) return;
+
+    setCancelling(true);
+    setError('');
+
+    try {
+      await sendMessage<{ cancelled: boolean }>({
+        type: 'GRIN_CANCEL_SEND',
+        slateId: invoicePayment.slateId,
+        inputIds: invoicePayment.inputIds,
+      });
+
+      await clearGrinSignedInvoice();
+      setInvoicePayment(null);
+      setInvoiceInput('');
+      setInvoiceMode(false);
+
+      // Refresh balance (outputs unlocked)
+      onSlateCreated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to cancel');
+      setCancelling(false);
+    }
   };
 
   // Cancel an in-progress send (unlocks outputs on backend)
@@ -332,12 +369,12 @@ export function GrinSendView({
     );
   }
 
-  // Invoice payment: Show signed response sent confirmation
+  // Invoice payment: Show signed slatepack for user to copy and send back
   if (invoicePayment) {
     return (
       <>
         <header class="header">
-          <button class="btn btn-icon" onClick={handleClearInvoicePayment} title="Back">
+          <button class="btn btn-icon" onClick={onBack} title="Back">
             ←
           </button>
           <h1 style={{ flex: 1, textAlign: 'center' }}>Invoice Signed</h1>
@@ -345,47 +382,95 @@ export function GrinSendView({
         </header>
 
         <div class="content">
-          <div style={{ textAlign: 'center', padding: '24px 0' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>✓</div>
-            <h3 style={{ marginBottom: '8px', color: 'var(--color-success)' }}>Signed!</h3>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '13px', marginBottom: '16px' }}>
-              The signed slatepack has been copied to your clipboard.
-            </p>
-            <div
-              style={{
-                background: 'var(--color-bg-card)',
-                borderRadius: '8px',
-                padding: '12px',
-                marginBottom: '16px',
-                textAlign: 'left',
-              }}
-            >
+          <div
+            style={{
+              background: 'var(--color-info-bg)',
+              borderRadius: '8px',
+              padding: '12px',
+              marginBottom: '16px',
+              fontSize: '12px',
+              color: 'var(--color-info-text)',
+              lineHeight: '1.5',
+            }}
+          >
+            Copy this signed slatepack and send it back to the invoicer. They will finalize and broadcast the transaction.
+          </div>
+
+          {/* Amount and fee */}
+          <div
+            style={{
+              background: 'var(--color-bg-card)',
+              borderRadius: '8px',
+              padding: '12px',
+              marginBottom: '16px',
+              display: 'flex',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div>
               <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Amount</div>
               <div style={{ fontSize: '16px', fontWeight: 600 }}>
                 {formatBalance(invoicePayment.amount, 'grin')} GRIN
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '8px', marginBottom: '4px' }}>Fee</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Fee</div>
               <div style={{ fontSize: '14px' }}>
                 {formatBalance(invoicePayment.fee, 'grin')} GRIN
               </div>
             </div>
+          </div>
+
+          {/* Signed slatepack - visible and copyable */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '6px' }}>
+              Signed slatepack to send back:
+            </label>
             <div
               style={{
-                background: 'var(--color-info-bg)',
-                borderRadius: '8px',
-                padding: '12px',
-                marginBottom: '24px',
-                fontSize: '12px',
-                color: 'var(--color-info-text)',
-                textAlign: 'left',
+                background: 'var(--color-bg-input)',
+                border: '1px solid var(--color-border)',
+                borderRadius: '6px',
+                padding: '10px',
+                marginBottom: '8px',
+                maxHeight: '120px',
+                overflow: 'auto',
+                cursor: 'pointer',
               }}
+              onClick={() => copyToClipboard(invoicePayment.signedSlatepack, showToast, 'Signed slatepack copied')}
             >
-              Send the signed slatepack back to the invoicer. They will finalize and broadcast the transaction.
+              <pre
+                style={{
+                  fontSize: '9px',
+                  fontFamily: 'monospace',
+                  wordBreak: 'break-all',
+                  whiteSpace: 'pre-wrap',
+                  margin: 0,
+                  color: 'var(--color-text-muted)',
+                }}
+              >
+                {invoicePayment.signedSlatepack}
+              </pre>
             </div>
-            <button class="btn btn-primary" style={{ width: '100%' }} onClick={handleClearInvoicePayment}>
-              Done
+            <button
+              class="btn btn-primary"
+              style={{ width: '100%' }}
+              onClick={() => copyToClipboard(invoicePayment.signedSlatepack, showToast, 'Signed slatepack copied')}
+            >
+              Copy Slatepack
             </button>
           </div>
+
+          {error && <p style={{ color: '#ef4444', fontSize: '13px', marginBottom: '12px' }}>{error}</p>}
+
+          <button
+            class="btn btn-secondary"
+            style={{ width: '100%' }}
+            onClick={handleCancelInvoicePayment}
+            disabled={cancelling}
+          >
+            {cancelling ? 'Cancelling...' : 'Cancel Transaction'}
+          </button>
         </div>
       </>
     );

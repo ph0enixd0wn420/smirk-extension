@@ -73,10 +73,13 @@ function setupMessageRelay() {
     // Only accept messages from same window (our injected script)
     if (event.source !== window) return;
 
+    // Validate message shape before destructuring
+    if (!event.data || typeof event.data !== 'object') return;
     const { type, id, method, params } = event.data;
 
     // Only handle SMIRK_REQUEST messages
     if (type !== 'SMIRK_REQUEST') return;
+    if (typeof id !== 'number' || typeof method !== 'string') return;
 
     try {
       // Get current page info for the request
@@ -94,7 +97,10 @@ function setupMessageRelay() {
         favicon,
       });
 
-      // Send response back to injected script
+      // Send response back to injected script.
+      // Uses '*' targetOrigin because the extension runs on any website —
+      // window.location.origin could be used as future hardening if it
+      // doesn't break cross-origin iframe scenarios.
       if (response?.success) {
         window.postMessage(
           {
